@@ -18,6 +18,8 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
 using System.Windows.Shapes;
+using System.Speech.Synthesis;
+using System.Speech.AudioFormat;
 
 namespace configuration
 {
@@ -27,6 +29,8 @@ namespace configuration
     public partial class MainWindow : Window
     {
         private ShipsConfiguration shipsConfiguration;
+
+        private List<VoiceInfo> speechOptions;
 
         public MainWindow()
         {
@@ -74,7 +78,29 @@ namespace configuration
 
             // Configure the Speech tab
             SpeechServiceConfiguration speechConfiguration = SpeechServiceConfiguration.FromFile();
-
+            // Get available Voices
+            speechOptions = new List<VoiceInfo>();
+            try
+            {
+                // Initialize a new instance of the SpeechSynthesizer.
+                using (SpeechSynthesizer synth = new SpeechSynthesizer())
+                {
+                    speechVoiceDropDown.DataContext = synth.GetInstalledVoices();
+                    
+                    // Output information about all of the installed voices. 
+                    foreach (InstalledVoice voice in synth.GetInstalledVoices())
+                    {
+                        VoiceInfo voiceInfo = voice.VoiceInfo;
+                        speechOptions.Add(voiceInfo);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                using (System.IO.StreamWriter file = new System.IO.StreamWriter(Environment.GetEnvironmentVariable("AppData") + @"\EDDI\speech.log", true)) { file.WriteLine("" + System.Threading.Thread.CurrentThread.ManagedThreadId + ": Caught exception " + ex); }
+            }
+            speechVoiceDropDown.ItemsSource = speechOptions;
+            speechVoiceDropDown.Text = speechConfiguration.StandardVoice;
         }
 
         // Handle chagnes to the eddi tab
@@ -309,9 +335,9 @@ namespace configuration
         private void updateSpeechConfiguration()
         {
             SpeechServiceConfiguration speechConfiguration = new SpeechServiceConfiguration();
-            if (!String.IsNullOrWhiteSpace(speechVoiceDropDown.SelectedItem.ToString()))
+            if (!String.IsNullOrWhiteSpace(speechVoiceDropDown.SelectedValue.ToString()))
             {
-                speechConfiguration.StandardVoice = speechVoiceDropDown.SelectedItem.ToString().Trim();
+                speechConfiguration.StandardVoice = ((VoiceInfo)speechVoiceDropDown.SelectedValue).Name;
             }
             speechConfiguration.ToFile();
         }

@@ -20,7 +20,6 @@ namespace EliteDangerousSpeechService
         /// path of %APPDATA%\EDDI\edsm.json is used
         /// </summary>
         /// <param name="filename"></param>
-        /// <returns></returns>
         public static SpeechServiceConfiguration FromFile(string filename=null)
         {
             if (filename==null)

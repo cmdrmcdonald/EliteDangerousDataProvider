@@ -137,10 +137,7 @@
                         </Grid.RowDefinitions>
                         <TextBlock x:Name ="speech2Text" Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2" TextWrapping="Wrap" Margin="20" Text="You can select your favorite Voice for EDDI to use." VerticalAlignment="Top"/>
                         <Label x:Name ="speechVoiceLabel" Grid.Row="1" Grid.Column="0" Content="Standard Voice:" />
-                        <ComboBox x:Name ="speechVoiceDropDown" Grid.Row="1" Grid.Column="1" Margin="3" SelectionChanged="speechVoiceDropDownUpdated">
-                            <ComboBoxItem>Test 1</ComboBoxItem>
-                            <ComboBoxItem>Test 2</ComboBoxItem>
-                        </ComboBox>
+                        <ComboBox x:Name ="speechVoiceDropDown" DisplayMemberPath="Name" Grid.Row="1" Grid.Column="1" Margin="3" SelectionChanged="speechVoiceDropDownUpdated"></ComboBox>
                     </Grid>
                 </DockPanel>
             </TabItem>
