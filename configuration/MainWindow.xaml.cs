@@ -3,6 +3,7 @@ using EliteDangerousCompanionAppService;
 using EliteDangerousDataDefinitions;
 using EliteDangerousNetLogMonitor;
 using EliteDangerousStarMapService;
+using EliteDangerousSpeechService;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -70,6 +71,10 @@ namespace configuration
             StarMapConfiguration starMapConfiguration = StarMapConfiguration.FromFile();
             edsmApiKeyTextBox.Text = starMapConfiguration.apiKey;
             edsmCommanderNameTextBox.Text = starMapConfiguration.commanderName;
+
+            // Configure the Speech tab
+            SpeechServiceConfiguration speechConfiguration = SpeechServiceConfiguration.FromFile();
+
         }
 
         // Handle chagnes to the eddi tab
@@ -292,8 +297,23 @@ namespace configuration
             if (shipsConfiguration != null)
             {
                 shipsConfiguration.ToFile();
-            }            
+            }
         }
 
+        //Handle changes to the Speech tab
+        private void speechVoiceDropDownUpdated(object sender, SelectionChangedEventArgs e)
+        {
+            updateSpeechConfiguration();
+        }
+
+        private void updateSpeechConfiguration()
+        {
+            SpeechServiceConfiguration speechConfiguration = new SpeechServiceConfiguration();
+            if (!String.IsNullOrWhiteSpace(speechVoiceDropDown.SelectedItem.ToString()))
+            {
+                speechConfiguration.StandardVoice = speechVoiceDropDown.SelectedItem.ToString().Trim();
+            }
+            speechConfiguration.ToFile();
+        }
     }
 }

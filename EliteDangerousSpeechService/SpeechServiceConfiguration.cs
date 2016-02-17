@@ -7,7 +7,7 @@ namespace EliteDangerousSpeechService
     /// <summary>
     /// Storage for the Text-to-Speech Configs
     /// </summary>
-    class SpeechServiceConfiguration
+    public class SpeechServiceConfiguration
     {
         [JsonProperty("StandardVoice")]
         public String StandardVoice { get; set;  }
