@@ -19,7 +19,7 @@ using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
 using System.Windows.Shapes;
 using System.Speech.Synthesis;
-using System.Speech.AudioFormat;
+using System.IO;
 
 namespace configuration
 {

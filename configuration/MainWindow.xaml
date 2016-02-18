@@ -108,7 +108,7 @@
                     </Grid>
                 </DockPanel>
             </TabItem>
-            <TabItem Header="Shipyard" HorizontalAlignment="Left" Width="62">
+            <TabItem Header="Shipyard">
                 <DockPanel LastChildFill="True" Background="#FFE5E5E5">
                     <TextBlock x:Name="shipyardText" DockPanel.Dock="Top" TextWrapping="Wrap" Margin="20" Text="This allows you to set names and callsigns for your ships.  The information is made available in VoiceAttack for use by scripts.  Please note that for this feature to work the companion app needs to be configured" VerticalAlignment="Top"/>
                     <DataGrid AutoGenerateColumns="False" x:Name="shipyardData" CanUserAddRows="false" TargetUpdated="shipYardUpdated">
@@ -122,9 +122,9 @@
                     </DataGrid>
                 </DockPanel>
             </TabItem>
-            <TabItem Header="Text-to-Speech" HorizontalAlignment="Left">
+            <TabItem Header="Text-to-Speech">
                 <DockPanel LastChildFill="True" Background="#FFE5E5E5">
-                    <TextBlock x:Name="speechText" DockPanel.Dock="Top" TextWrapping="Wrap" Margin="20" Text="EDDI has a Text-to-Speech feature Using SSMI, to make your Texts more immersive. It is adding ambient effects specific to your ships cockpit design." VerticalAlignment="Top"/>
+                    <TextBlock x:Name="speechText" DockPanel.Dock="Top" TextWrapping="Wrap" Margin="20" Text="EDDI has a Text-to-Speech feature Using SSML, to make your Texts more immersive. It is adding ambient effects specific to your ships cockpit design." VerticalAlignment="Top"/>
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />
@@ -137,7 +137,7 @@
                         </Grid.RowDefinitions>
                         <TextBlock x:Name ="speech2Text" Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2" TextWrapping="Wrap" Margin="20" Text="You can select your favorite Voice for EDDI to use." VerticalAlignment="Top"/>
                         <Label x:Name ="speechVoiceLabel" Grid.Row="1" Grid.Column="0" Content="Standard Voice:" />
-                        <ComboBox x:Name ="speechVoiceDropDown" DisplayMemberPath="Name" Grid.Row="1" Grid.Column="1" Margin="3" SelectionChanged="speechVoiceDropDownUpdated"></ComboBox>
+                        <ComboBox x:Name ="speechVoiceDropDown" DisplayMemberPath="Name" Grid.Row="1" Grid.Column="1" Margin="3" SelectionChanged="speechVoiceDropDownUpdated"/>
                     </Grid>
                 </DockPanel>
             </TabItem>
