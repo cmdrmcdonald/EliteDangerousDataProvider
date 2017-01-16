@@ -128,6 +128,10 @@ namespace EddiSpeechResponder
                 return translation;
             }, 1);
 
+            // Boolean constants
+            store["true"] = true;
+            store["false"] = false;
+
             // Helper functions
             store["OneOf"] = new NativeFunction((values) =>
             {
@@ -359,23 +363,30 @@ namespace EddiSpeechResponder
                 return (result == null ? new ReflectionValue(new object()) : new ReflectionValue(result));
             }, 1);
 
+            store["ClearState"] = new NativeFunction((values) =>
+            {
+                string name = values[0].AsString.ToLowerInvariant().Replace(" ", "_");
+                EDDI.Instance.PState.SetString(name, null);
+                return "";
+            }, 1);
+
             store["SetState"] = new NativeFunction((values) =>
             {
                 string name = values[0].AsString.ToLowerInvariant().Replace(" ", "_");
                 Cottle.Value value = values[1];
                 if (value.Type == Cottle.ValueContent.Boolean)
                 {
-                    EDDI.Instance.State[name] = value.AsBoolean;
+                    EDDI.Instance.PState.SetFlag(name, value.AsBoolean);
                     store["state"] = buildState();
                 }
                 else if (value.Type == Cottle.ValueContent.Number)
                 {
-                    EDDI.Instance.State[name] = value.AsNumber;
+                    EDDI.Instance.PState.SetNumber(name, value.AsNumber);
                     store["state"] = buildState();
                 }
                 else if (value.Type == Cottle.ValueContent.String)
                 {
-                    EDDI.Instance.State[name] = value.AsString;
+                    EDDI.Instance.PState.SetString(name, value.AsString);
                     store["state"] = buildState();
                 }
                 // Ignore other possibilities
@@ -388,32 +399,43 @@ namespace EddiSpeechResponder
                 store[entry.Key] = entry.Value;
             }
 
+            // State
+            store["state"] = buildState();
+
             return store;
         }
 
         private static Dictionary<Cottle.Value, Cottle.Value> buildState()
         {
-            if (EDDI.Instance.State == null)
+            if (EDDI.Instance.PState == null)
             {
                 return null;
             }
 
             Dictionary<Cottle.Value, Cottle.Value> state = new Dictionary<Cottle.Value, Cottle.Value>();
-            foreach (string key in EDDI.Instance.State.Keys)
+            foreach (string key in EDDI.Instance.PState.Keys)
             {
-                object value = EDDI.Instance.State[key];
+                object value = EDDI.Instance.PState.Get(key);
                 Type valueType = value.GetType();
                 if (valueType == typeof(string))
                 {
                     state[key] = (string)value;
                 }
-                else if (valueType == typeof(int))
-                {
-                    state[key] = (int)value;
-                }
                 else if (valueType == typeof(bool))
                 {
                     state[key] = (bool)value;
+                }
+                else if (valueType == typeof(int))
+                {
+                    state[key] = (decimal)(int)value;
+                }
+                else if (valueType == typeof(float))
+                {
+                    state[key] = (decimal)(float)value;
+                }
+                else if (valueType == typeof(double))
+                {
+                    state[key] = (decimal)(double)value;
                 }
                 else if (valueType == typeof(decimal))
                 {

@@ -466,5 +466,32 @@ namespace Tests
             Logging.Verbose = true;
             SpeechService.Instance.Say(null, "<phoneme alphabet=\"ipa\" ph=\"ʃɪnˈrɑːrtə\">Shinrarta</phoneme> <phoneme alphabet=\"ipa\" ph=\"ˈdezɦrə\">Dezhra</phoneme> & Co's shop", true);
         }
+
+        [TestMethod]
+        public void TestSpeechLexicon()
+        {
+            EventWaitHandle waitHandle = new AutoResetEvent(false);
+
+            using (MemoryStream stream = new MemoryStream())
+            using (SpeechSynthesizer synth = new SpeechSynthesizer())
+            {
+                synth.SetOutputToWaveStream(stream);
+                //synth.SpeakSsml("<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?><speak version = \"1.0\" xmlns = \"http://www.w3.org/2001/10/synthesis\" xml:lang=\"en-GB\"><lexicon uri=\"file:\\\\C:\\users\\jgm\\Desktop\\test.xml\" /><s>You are travelling to the Achenar system.</s></speak>");
+                synth.SpeakSsml("<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?><speak version = \"1.0\" xmlns = \"http://www.w3.org/2001/10/synthesis\" xml:lang=\"en-GB\"><lexicon uri=\"file:\\\\C:\\users\\jgm\\Desktop\\test.xml\" /><s>You are aligned with Aisling Duval in your Cobra Mk. III.</s></speak>");
+                stream.Seek(0, SeekOrigin.Begin);
+
+                IWaveSource source = new WaveFileReader(stream);
+
+                var soundOut = new WasapiOut();
+                soundOut.Stopped += (s, e) => waitHandle.Set();
+
+                soundOut.Initialize(source);
+                soundOut.Play();
+
+                waitHandle.WaitOne();
+                soundOut.Dispose();
+                source.Dispose();
+            }
+        }
     }
 }

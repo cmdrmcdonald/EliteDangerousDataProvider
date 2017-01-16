@@ -100,7 +100,8 @@ namespace Eddi
         public string Vehicle { get; private set; } = Constants.VEHICLE_SHIP;
 
         // Session state
-        public ObservableConcurrentDictionary<string, object> State = new ObservableConcurrentDictionary<string, object>();
+        public PState PState { get; private set; }
+        // public ObservableConcurrentDictionary<string, object> State = new ObservableConcurrentDictionary<string, object>();
 
         private EDDI()
         {
@@ -120,10 +121,13 @@ namespace Eddi
                     return;
                 }
 
+
                 // Ensure that our primary data structures have something in them.  This allows them to be updated from any source
                 Cmdr = new Commander();
                 Ship = new Ship();
                 Shipyard = new List<Ship>();
+
+                PState = PState.Instance;
 
                 // Set up the EDDI configuration
                 EDDIConfiguration configuration = EDDIConfiguration.FromFile();

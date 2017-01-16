@@ -50,7 +50,7 @@ namespace EddiVoiceAttackResponder
                 EDDI.Instance.Start();
 
                 // Add a notifier for state changes
-                EDDI.Instance.State.CollectionChanged += (s, e) => setDictionaryValues(EDDI.Instance.State, "state", ref vaProxy);
+                EDDI.Instance.PState.CollectionChanged += (s, e) => setStateValues(EDDI.Instance.PState, "state", ref vaProxy);
 
                 // Display instance information if available
                 if (EDDI.Instance.Server != null)
@@ -671,33 +671,34 @@ namespace EddiVoiceAttackResponder
                 string strValue = vaProxy.GetText(name);
                 if (strValue != null)
                 {
-                    EDDI.Instance.State[stateVariableName] = strValue;
-                    return;
-                }
-
-                int? intValue = vaProxy.GetInt(name);
-                if (intValue != null)
-                {
-                    EDDI.Instance.State[stateVariableName] = intValue;
+                    EDDI.Instance.PState.SetString(stateVariableName, strValue);
                     return;
                 }
 
                 bool? boolValue = vaProxy.GetBoolean(name);
                 if (boolValue != null)
                 {
-                    EDDI.Instance.State[stateVariableName] = boolValue;
+                    EDDI.Instance.PState.SetFlag(stateVariableName, boolValue);
                     return;
                 }
 
                 decimal? decValue = vaProxy.GetDecimal(name);
                 if (decValue != null)
                 {
-                    EDDI.Instance.State[stateVariableName] = decValue;
+                    EDDI.Instance.PState.SetNumber(stateVariableName, decValue);
+                    return;
+                }
+
+                // This is deprecated
+                int? intValue = vaProxy.GetInt(name);
+                if (intValue != null)
+                {
+                    EDDI.Instance.PState.SetNumber(stateVariableName, (decimal?)intValue);
                     return;
                 }
 
                 // Nothing above, so remove the item
-                EDDI.Instance.State.Remove(stateVariableName);
+                EDDI.Instance.PState.RemoveKey(stateVariableName);
             }
             catch (Exception e)
             {
@@ -826,7 +827,7 @@ namespace EddiVoiceAttackResponder
             setStarSystemValues(EDDI.Instance.LastStarSystem, "Last system", ref vaProxy);
             setStarSystemValues(EDDI.Instance.HomeStarSystem, "Home system", ref vaProxy);
 
-            setDictionaryValues(EDDI.Instance.State, "state", ref vaProxy);
+            setStateValues(EDDI.Instance.PState, "state", ref vaProxy);
 
             // Backwards-compatibility with 1.x
             if (EDDI.Instance.HomeStarSystem != null)
@@ -850,12 +851,12 @@ namespace EddiVoiceAttackResponder
             Logging.Debug("Set values");
         }
 
-        // Set values from a dictionary
-        private static void setDictionaryValues(IDictionary<string, object> dict, string prefix, ref dynamic vaProxy)
+        // Set values from state
+        private static void setStateValues(PState state, string prefix, ref dynamic vaProxy)
         {
-            foreach (string key in dict.Keys)
+            foreach (string key in state.Keys)
             {
-                object value = dict[key];
+                object value = state.Get(key);
                 Type valueType = value.GetType();
                 if (valueType.IsGenericType && valueType.GetGenericTypeDefinition() == typeof(Nullable<>))
                 {

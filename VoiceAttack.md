@@ -335,7 +335,7 @@ To use this function in your own commands use the 'Execute an external plugin fu
     * set the text variable "State variable" to "Verbose"
     * call EDDI with the context set to "setstate"
 
-This function only supports integers, booleans, decimals and strings as state values.  The name of the value will be altered if necessary to ensure that it is all lower-case, and that spaces are replace by underscores.  For example, if you attempt to store a state variable "My variable" it will be stored as "my_variable".
+This function only supports booleans, decimals and strings as state values.  The name of the value will be altered if necessary to ensure that it is all lower-case, and that spaces are replace by underscores.  For example, if you attempt to store a state variable "My variable" it will be stored as "my_variable".
 
 State variables are made available in VoiceAttack with the prefix 'EDDI state'.  For example, to access the text variable stored in the last paragraph you would use '{TXT:EDDI state my_variable}'.
 

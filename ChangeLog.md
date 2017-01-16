@@ -3,6 +3,7 @@
   * Ensure that state changes are picked up by VoiceAttack plugin immediately
   * Fix issue where hull damage events were not always triggered
   * Add module definitions for Module Reinforcement Packages
+  * Deprecate use of VoiceAttack integers to set state.  This feature will be removed in the next release; please migrate to using decimals instead
 
 #2.1.0
   * Core

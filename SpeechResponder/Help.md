@@ -63,13 +63,23 @@ Common usage of this is to allow speech to sync up with in-game sounds, for exam
 
 ### SetState()
 
-This function will set a session state value.  The value will be available as a property of the 'state' object in future templates within the same EDDI session.
+This function will set a state value.  The value will be available as a property of the 'state' object in future templates within the same EDDI session.
 
-SetState takes two arguments: the name of the state value to set, and its value.  The name of the state value will be converted to lower-case and spaces changed to underscores.  The value must be either a boolean, a number, or a string; other values will be ignored.
+SetState() takes two arguments: the name of the state value to set, and its value.  The name of the state value will be converted to lower-case and spaces changed to underscores.  The value must be either a boolean, a number, or a string; other values will be ignored.
 
-Common usage of this is to keep track of the cumulative or persistent information within a session, for example:
+Common usage of this is to keep track of the cumulative or persistent information, for example:
 
     {SetState("distance_travelled_today", state.distance_travelled_today + event.distance)}
+
+### ClearState()
+
+This function will clear a state value.
+
+ClearState() takes one argument: the name of the state value to clear.  The name of the state value will be converted to lower-case and spaces changed to underscores.
+
+Common usage of this is to remove cumulative or persistent information within a session, for example:
+
+    {ClearState("outstanding_fines")}
 
 ### Humanise()
 

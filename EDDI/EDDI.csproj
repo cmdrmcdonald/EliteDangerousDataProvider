@@ -101,6 +101,7 @@
     <Compile Include="EDDI.cs" />
     <Compile Include="EDDIMonitor.cs" />
     <Compile Include="EDDIResponder.cs" />
+    <Compile Include="PState.cs" />
     <Page Include="MainWindow.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
