@@ -470,7 +470,7 @@
       "enabled": true,
       "priority": 3,
       "responder": true,
-      "script": "{if event.storedship:\r\n    {OneOf(\"Storing\", \"Mothballing\", \"Parking\")} {ShipName(event.storedshipid, event.storedship)} and\r\n|elif event.soldship:\r\n    Selling {ShipName(event.soldshipid, event.soldship)} and\r\n}\r\n\r\n{OneOf(\"swapping\",\"moving\",\"transferring\")} to {ShipName(event.shipid, event.ship)}.",
+      "script": "{if event.storedship:\r\n    {OneOf(\"Storing\", \"Mothballing\", \"Stashing\", \"Parking\")} {ShipName(event.storedshipid, event.storedship)} and\r\n|elif event.soldship:\r\n    Selling {ShipName(event.soldshipid, event.soldship)} and\r\n}\r\n\r\n{OneOf(\"swapping\",\"moving\",\"transferring\")} to {ShipName(event.shipid, event.ship)}.\r\n\r\n{set fighterBayShipSwap to F(\"Ship swap fighter bay report\")}\r\n{fighterBayShipSwap}\r\n\r\n{set limpetCheck to F(\"Limpet check\")}\r\n{limpetCheck}",
       "name": "Ship swapped",
       "description": "Triggered when you swap a ship"
     },
@@ -969,6 +969,14 @@
       "script": "{_ Fetch from context }\r\n{set reportsystem to SystemDetails(state.eddi_context_system_system)}\r\n\r\n{if !reportsystem.name || reportbody.name = \"\":\r\n    I'm not sure which system you are asking about.\r\n|else:\r\n    {P(reportsystem.name)}\r\n    {if reportsystem.state = \"None\":\r\n      is not in any particular state at current\r\n    |elif reportsystem.state = \"Retreat\":\r\n        is in retreat\r\n    |elif reportsystem.state = \"War\":\r\n        is at war; caution is advised\r\n    |elif reportsystem.state = \"Boom\":\r\n        is undergoing a boom; there might be good trading profits to be made here\r\n    |elif reportsystem.state = \"Civil War\":\r\n        is experiencing civil unrest; caution is advised\r\n    |elif reportsystem.state = \"Civil War\":\r\n        is in civil war; caution is advised\r\n    |elif reportsystem.state = \"Famine\":\r\n        is in a state of famine; caution is advised\r\n    |elif reportsystem.state = \"Lockdown\":\r\n        is in lockdown; caution is advised\r\n    |elif reportsystem.state = \"Outbreak\":\r\n        is attempting to contain an outbreak of disease; caution is advised\r\n    |elif reportsystem.state = \"Expansion\":\r\n        is gearing up to expand to another system\r\n    |elif reportsystem.state = \"Bust\":\r\n        is financially bust\r\n    |elif reportsystem.state = \"Election\":\r\n        is electing new leaders\r\n    |elif reportsystem.state = \"Investment\":\r\n        is investing in its infrastructure\r\n    |else:\r\n    }\r\n    .\r\n}",
       "name": "System state report",
       "description": "Report on the current state of the contextual system"
-    }
+    },
+	"Ship swap fighter bay report": {
+	  "enabled":true,
+	  "priority": 3,
+	  "responder": false,
+	  "script": "{set  fighterBay to 0}\r\n{for compartment in ship.compartments:\r\n    {if find(compartment.module.name, \"Fighter\") != -1:\r\n        {set fighterBay to fighterBay + 1}\r\n    }\r\n}\r\n\r\n{if fighterBay > 0:\r\n    Reminder: Ship has fighter bay, ensure you set a crewmember to active!\r\n}",
+	  "name": "Ship swap fighter bay report",
+	  "description": "Reminder when switching ships to activate a crewmember"
+	}
   }
 }
