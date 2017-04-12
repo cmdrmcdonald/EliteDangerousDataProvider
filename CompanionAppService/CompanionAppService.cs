@@ -646,101 +646,113 @@ namespace EddiCompanionAppService
                 return null;
             }
 
-            Ship Ship = ShipDefinitions.FromEDModel((string)json["name"]);
+            Ship Ship = ShipDefinitions.FromEDModel((string)(json["name"] ?? "NoName"));
 
-            Ship.json = json.ToString(Formatting.None);
-
-            Ship.LocalId = json["id"];
-
-            // Some ship information is just skeleton data of the ship's ID.  Use value as our canary to see if there is more data
-            if (json["value"] != null)
+            // Return a ship at least if parsing fails
+            try
             {
-                Ship.value = (long)json["value"]["hull"] + (long)json["value"]["modules"];
+                Ship.json = json.ToString(Formatting.None);
 
-                Ship.cargocapacity = (int)json["cargo"]["capacity"];
-                Ship.cargocarried = (int)json["cargo"]["qty"];
+                Ship.LocalId = json["id"];
 
-                // Be sensible with health - round it unless it's very low
-                decimal Health = (decimal)json["health"]["hull"] / 10000;
-                if (Health < 5)
+                // Some ship information is just skeleton data of the ship's ID.  Use value as our canary to see if there is more data
+                if (json["value"] != null)
                 {
-                    Ship.health = Math.Round(Health, 1);
-                }
-                else
-                {
-                    Ship.health = Math.Round(Health);
-                }
+                    Ship.value = (long)json["value"]["hull"] + (long)json["value"]["modules"];
 
-                // Obtain the internals
-                Ship.bulkheads = ModuleFromProfile("Armour", json["modules"]["Armour"]);
-                Ship.powerplant = ModuleFromProfile("PowerPlant", json["modules"]["PowerPlant"]);
-                Ship.thrusters = ModuleFromProfile("MainEngines", json["modules"]["MainEngines"]);
-                Ship.frameshiftdrive = ModuleFromProfile("FrameShiftDrive", json["modules"]["FrameShiftDrive"]);
-                Ship.lifesupport = ModuleFromProfile("LifeSupport", json["modules"]["LifeSupport"]);
-                Ship.powerdistributor = ModuleFromProfile("PowerDistributor", json["modules"]["PowerDistributor"]);
-                Ship.sensors = ModuleFromProfile("Radar", json["modules"]["Radar"]);
-                Ship.fueltank = ModuleFromProfile("FuelTank", json["modules"]["FuelTank"]);
-                Ship.fueltankcapacity = (decimal)Math.Pow(2, Ship.fueltank.@class);
-                Ship.fueltanktotalcapacity = (decimal)json["fuel"]["main"]["capacity"];
+                    Ship.cargocapacity = (int)(json["cargo"]?["capacity"] ?? 0);
+                    Ship.cargocarried = (int)(json["cargo"]?["qty"] ?? 0);
 
-                // Obtain the hardpoints.  Hardpoints can come in any order so first parse them then second put them in the correct order
-                Dictionary<string, Hardpoint> hardpoints = new Dictionary<string, Hardpoint>();
-                foreach (JProperty module in json["modules"])
-                {
-                    if (module.Name.Contains("Hardpoint"))
+                    // Be sensible with health - round it unless it's very low
+                    decimal Health = (decimal)(json["value"]["hull"] / 10000);
+                    if (Health < 5)
                     {
-                        hardpoints.Add(module.Name, HardpointFromProfile(module));
+                        Ship.health = Math.Round(Health, 1);
                     }
-                }
-
-                foreach (string size in HARDPOINT_SIZES)
-                {
-                    for (int i = 1; i < 12; i++)
+                    else
                     {
-                        Hardpoint hardpoint;
-                        hardpoints.TryGetValue(size + "Hardpoint" + i, out hardpoint);
-                        if (hardpoint != null)
+                        Ship.health = Math.Round(Health);
+                    }
+
+                    // modules can be missing (stored ships)
+                    if (json["modules"] != null)
+                    {
+                        // Obtain the internals
+                        Ship.bulkheads = ModuleFromProfile("Armour", json["modules"]["Armour"]);
+                        Ship.powerplant = ModuleFromProfile("PowerPlant", json["modules"]["PowerPlant"]);
+                        Ship.thrusters = ModuleFromProfile("MainEngines", json["modules"]["MainEngines"]);
+                        Ship.frameshiftdrive = ModuleFromProfile("FrameShiftDrive", json["modules"]["FrameShiftDrive"]);
+                        Ship.lifesupport = ModuleFromProfile("LifeSupport", json["modules"]["LifeSupport"]);
+                        Ship.powerdistributor = ModuleFromProfile("PowerDistributor", json["modules"]["PowerDistributor"]);
+                        Ship.sensors = ModuleFromProfile("Radar", json["modules"]["Radar"]);
+                        Ship.fueltank = ModuleFromProfile("FuelTank", json["modules"]["FuelTank"]);
+                        Ship.fueltankcapacity = (decimal)Math.Pow(2, Ship.fueltank.@class);
+                        Ship.fueltanktotalcapacity = (decimal)(json["fuel"]?["main"]?["capacity"] ?? Ship.fueltankcapacity);
+
+                        // Obtain the hardpoints.  Hardpoints can come in any order so first parse them then second put them in the correct order
+                        Dictionary<string, Hardpoint> hardpoints = new Dictionary<string, Hardpoint>();
+                        foreach (JProperty module in json["modules"])
                         {
-                            Ship.hardpoints.Add(hardpoint);
-                        }
-                    }
-                }
-
-                // Obtain the compartments
-                foreach (dynamic module in json["modules"])
-                {
-                    if (module.Name.Contains("Slot"))
-                    {
-                        Ship.compartments.Add(CompartmentFromProfile(module));
-                    }
-                }
-
-                // Obtain the cargo
-                Ship.cargo = new List<Cargo>();
-                if (json["cargo"] != null && json["cargo"]["items"] != null)
-                {
-                    foreach (dynamic cargoJson in json["cargo"]["items"])
-                    {
-                        if (cargoJson != null && cargoJson["commodity"] != null)
-                        {
-                            string name = (string)cargoJson["commodity"];
-                            Cargo cargo = new Cargo();
-                            cargo.commodity = CommodityDefinitions.FromName(name);
-                            if (cargo.commodity.name == null)
+                            if (module.Name.Contains("Hardpoint"))
                             {
-                                // Unknown commodity; log an error so that we can update the definitions
-                                Logging.Error("No commodity definition for cargo", cargoJson.ToString(Formatting.None));
-                                cargo.commodity.name = name;
+                                hardpoints.Add(module.Name, HardpointFromProfile(module));
                             }
-                            cargo.amount = (int)cargoJson["qty"];
-                            cargo.price = (long)cargoJson["value"] / cargo.amount;
-                            cargo.missionid = (long?)cargoJson["mission"];
-                            cargo.stolen = ((int?)(long?)cargoJson["marked"]) == 1;
+                        }
 
-                            Ship.cargo.Add(cargo);
+                        foreach (string size in HARDPOINT_SIZES)
+                        {
+                            for (int i = 1; i < 12; i++)
+                            {
+                                Hardpoint hardpoint;
+                                hardpoints.TryGetValue(size + "Hardpoint" + i, out hardpoint);
+                                if (hardpoint != null)
+                                {
+                                    Ship.hardpoints.Add(hardpoint);
+                                }
+                            }
+                        }
+
+                        // Obtain the compartments
+                        foreach (dynamic module in json["modules"])
+                        {
+                            if (module.Name.Contains("Slot"))
+                            {
+                                Ship.compartments.Add(CompartmentFromProfile(module));
+                            }
+                        }
+                    }
+
+                    // Obtain the cargo
+                    Ship.cargo = new List<Cargo>();
+                    if (json["cargo"] != null && json["cargo"]["items"] != null)
+                    {
+                        foreach (dynamic cargoJson in json["cargo"]["items"])
+                        {
+                            if (cargoJson != null && cargoJson["commodity"] != null)
+                            {
+                                string name = (string)cargoJson["commodity"];
+                                Cargo cargo = new Cargo();
+                                cargo.commodity = CommodityDefinitions.FromName(name);
+                                if (cargo.commodity.name == null)
+                                {
+                                    // Unknown commodity; log an error so that we can update the definitions
+                                    Logging.Error("No commodity definition for cargo", cargoJson.ToString(Formatting.None));
+                                    cargo.commodity.name = name;
+                                }
+                                cargo.amount = (int)cargoJson["qty"];
+                                cargo.price = (long)cargoJson["value"] / cargo.amount;
+                                cargo.missionid = (long?)cargoJson["mission"];
+                                cargo.stolen = ((int?)(long?)cargoJson["marked"]) == 1;
+
+                                Ship.cargo.Add(cargo);
+                            }
                         }
                     }
                 }
+            }
+            catch (Microsoft.CSharp.RuntimeBinder.RuntimeBinderException jsonBindException)
+            {
+                Logging.Error("Exception reading from JSON when trying to create a ship.", jsonBindException);
             }
 
             Logging.Debug("Leaving");
