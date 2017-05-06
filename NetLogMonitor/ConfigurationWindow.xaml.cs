@@ -52,7 +52,7 @@ namespace EddiNetLogMonitor
             }
             else
             {
-                netLogText.Text = @"Unfortuantely we were unable to locate your product directory.  Please type in the location of the 'Logs' directory in your 'elite-dangerous-64' directory.  Possible locations include:";
+                netLogText.Text = @"Unfortunately we were unable to locate your product directory.  Please type in the location of the 'Logs' directory in your 'elite-dangerous-64' directory.  Possible locations include:";
                 List<string> paths = new Finder().FindInstallationPaths();
                 if (paths.Count == 0)
                 {
