@@ -116,6 +116,20 @@ namespace Tests
         }
 
         [TestMethod]
+        public void TestJournalDocked2()
+        {
+            string line = @"{ ""timestamp"":""2017-04-14T19:34:32Z"",""event"":""Docked"",""StationName"":""Freeholm"",""StationType"":""AsteroidBase"",""StarSystem"":""Artemis"",""StationFaction"":""Artemis Empire Assembly"",""FactionState"":""Boom"",""StationGovernment"":""$government_Patronage;"",""StationGovernment_Localised"":""Patronage"",""StationAllegiance"":""Empire"",""StationEconomy"":""$economy_Industrial;"",""StationEconomy_Localised"":""Industrial"",""DistFromStarLS"":2527.211914,""StationServices"":[""Refuel""]}";
+            List<Event> events = JournalMonitor.ParseJournalEntry(line);
+            Assert.IsTrue(events.Count == 1);
+
+            DockedEvent theEvent = (DockedEvent)events[0];
+
+            Assert.AreEqual("AsteroidBase", theEvent.model);
+            Assert.AreEqual(1, theEvent.stationservices.Count);
+            Assert.AreEqual("Refuel", theEvent.stationservices[0]);
+        }
+
+        [TestMethod]
         public void TestJournalMessageReceived1()
         {
             string line = @"{ ""timestamp"":""2016-10-07T03:02:44Z"", ""event"":""ReceiveText"", ""From"":""$ShipName_Police_Federation;"", ""From_Localised"":""Federal Security Service"", ""Message"":""$Police_StartPatrol03;"", ""Message_Localised"":""Receiving five by five, I'm in the air now, joining patrol."", ""Channel"":""npc"" }";
@@ -141,7 +155,7 @@ namespace Tests
             MessageReceivedEvent event1 = (MessageReceivedEvent)events[0];
 
             Assert.IsFalse(event1.player);
-            Assert.AreEqual("NPC", event1.source);
+            Assert.AreEqual("Pirate", event1.source);
             Assert.AreEqual("Jonathan Dallard", event1.from);
 
             NPCCargoScanCommencedEvent event2 = (NPCCargoScanCommencedEvent)events[1];
