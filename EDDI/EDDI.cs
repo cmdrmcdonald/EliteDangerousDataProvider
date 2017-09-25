@@ -254,7 +254,7 @@ namespace Eddi
 
             try
             {
-                ServerInfo updateServerInfo = ServerInfo.FromServer("http://api.eddp.co/");
+                ServerInfo updateServerInfo = ServerInfo.FromServer(Constants.EDDI_SERVER_URL);
                 if (updateServerInfo == null)
                 {
                     Logging.Warn("Failed to contact update server");
@@ -308,7 +308,7 @@ namespace Eddi
         {
             try
             {
-                ServerInfo updateServerInfo = ServerInfo.FromServer("http://api.eddp.co/");
+                ServerInfo updateServerInfo = ServerInfo.FromServer(Constants.EDDI_SERVER_URL);
                 if (updateServerInfo == null)
                 {
                     Logging.Warn("Failed to contact update server");
@@ -321,7 +321,7 @@ namespace Eddi
                     if (Versioning.Compare(info.minversion, Constants.EDDI_VERSION) == 1)
                     {
                         Logging.Warn("This version of Eddi is too old to operate; please upgrade at " + info.url);
-                        SpeechService.Instance.Say(null, "This version of Eddiis too old to operate; please upgrade.", true);
+                        SpeechService.Instance.Say(null, "This version of Eddi is too old to operate; please upgrade.", true);
                         UpgradeRequired = true;
                         UpgradeLocation = info.url;
                         UpgradeVersion = info.version;
@@ -373,7 +373,7 @@ namespace Eddi
             catch (Exception ex)
             {
                 SpeechService.Instance.Say(null, "There was a problem connecting to external data services; some features may be temporarily unavailable", false);
-                Logging.Warn("Failed to access api.eddp.co", ex);
+                Logging.Warn("Failed to access " + Constants.EDDI_SERVER_URL, ex);
             }
             return true;
         }
@@ -396,7 +396,7 @@ namespace Eddi
                     else
                     {
                         // Inno setup will attempt to restart this application so register it
-                        RegisterApplicationRestart(null, RestartFlags.NONE);
+                        NativeMethods.RegisterApplicationRestart(null, RestartFlags.NONE);
 
                         Logging.Info("Downloaded update to " + updateFile);
                         Logging.Info("Path is " + Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location));
@@ -730,6 +730,10 @@ namespace Eddi
                     {
                         passEvent = eventFighterDocked((FighterDockedEvent)journalEvent);
                     }
+                    else if (journalEvent is BeltScannedEvent)
+                    {
+                        passEvent = eventBeltScanned((BeltScannedEvent)journalEvent);
+                    }
                     else if (journalEvent is StarScannedEvent)
                     {
                         passEvent = eventStarScanned((StarScannedEvent)journalEvent);
@@ -842,6 +846,12 @@ namespace Eddi
             CurrentStarSystem.z = theEvent.z;
             setSystemDistanceFromHome(CurrentStarSystem);
 
+            // Update the system population from the journal
+            if (theEvent.population != null)
+            {
+                CurrentStarSystem.population = theEvent.population;
+            }
+
             if (theEvent.docked == true)
             {
                 // In this case body === station
@@ -919,6 +929,41 @@ namespace Eddi
             station.faction = theEvent.faction;
             station.government = theEvent.government;
 
+            if (theEvent.stationservices != null)
+            {
+                foreach (var service in theEvent.stationservices)
+                {
+                    if (service == "Refuel")
+                    {
+                        station.hasrefuel = true;
+                    }
+                    else if (service == "Rearm")
+                    {
+                        station.hasrearm = true;
+                    }
+                    else if (service == "Repair")
+                    {
+                        station.hasrepair = true;
+                    }
+                    else if (service == "Outfitting")
+                    {
+                        station.hasoutfitting = true;
+                    }
+                    else if (service == "Shipyard")
+                    {
+                        station.hasshipyard = true;
+                    }
+                    else if (service == "Commodities")
+                    {
+                        station.hasmarket = true;
+                    }
+                    else if (service == "BlackMarket")
+                    {
+                        station.hasblackmarket = true;
+                    }
+                }
+            }
+
             CurrentStation = station;
 
             // Kick off the profile refresh if the companion API is available
@@ -989,15 +1034,20 @@ namespace Eddi
 
         private bool eventFileHeader(FileHeaderEvent @event)
         {
-            // If we don't recognise the build number then assume we're in beta
-            if (ProductionBuilds.Contains(@event.build))
-            {
-                inBeta = false;
-            }
-            else
-            {
-                inBeta = true;
-            }
+            // Test whether we're in beta by checking the filename, version described by the header, 
+            // and certain version / build combinations
+            inBeta = 
+                (
+                    @event.filename.Contains("Beta") ||
+                    @event.version.Contains("Beta") ||
+                    (
+                        @event.version.Contains("2.2") &&
+                        (
+                            @event.build.Contains("r121645/r0") ||
+                            @event.build.Contains("r129516/r0")
+                        )
+                    )
+                );
             Logging.Info(inBeta ? "On beta" : "On live");
             EliteConfiguration config = EliteConfiguration.FromFile();
             config.Beta = inBeta;
@@ -1026,6 +1076,10 @@ namespace Eddi
                 CurrentStarSystem.government = theEvent.government;
                 CurrentStarSystem.security = theEvent.security;
                 CurrentStarSystem.updatedat = (long)theEvent.timestamp.Subtract(new DateTime(1970, 1, 1)).TotalSeconds;
+                if (theEvent.population != null)
+                {
+                    CurrentStarSystem.population = theEvent.population;
+                }
 
                 CurrentStarSystem.visits++;
                 // We don't update lastvisit because we do that when we leave
@@ -1173,6 +1227,35 @@ namespace Eddi
             // We are back in the ship
             Vehicle = Constants.VEHICLE_SHIP;
             return true;
+        }
+
+        private bool eventBeltScanned(BeltScannedEvent theEvent)
+        {
+            // We just scanned a star.  We can only proceed if we know our current star system
+            if (CurrentStarSystem != null)
+            {
+                Body belt = CurrentStarSystem.bodies?.FirstOrDefault(b => b.name == theEvent.name);
+                if (belt == null)
+                {
+                    Logging.Debug("Scanned belt " + theEvent.name + " is new - creating");
+                    // A new item - set it up
+                    belt = new Body();
+                    belt.EDDBID = -1;
+                    belt.type = "Star";
+                    belt.name = theEvent.name;
+                    belt.systemname = CurrentStarSystem?.name;
+                    CurrentStarSystem.bodies?.Add(belt);
+                }
+
+                // Update with the information we have
+
+                belt.distance = (long?)theEvent.distancefromarrival;
+
+                CurrentStarSystem.bodies?.Add(belt);
+                Logging.Debug("Saving data for scanned belt " + theEvent.name);
+                StarSystemSqLiteRepository.Instance.SaveStarSystem(CurrentStarSystem);
+            }
+            return CurrentStarSystem != null;
         }
 
         private bool eventStarScanned(StarScannedEvent theEvent)
@@ -1651,13 +1734,16 @@ namespace Eddi
             eventHandler(@event);
         }
 
-        // Required to restart app after upgrade
-        [DllImport("kernel32.dll", CharSet = CharSet.Auto)]
-        static extern uint RegisterApplicationRestart(string pwzCommandLine, RestartFlags dwFlags);
+        internal static class NativeMethods
+        {
+            // Required to restart app after upgrade
+            [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
+            internal static extern uint RegisterApplicationRestart(string pwzCommandLine, RestartFlags dwFlags);
+        }
 
         // Flags for upgrade
         [Flags]
-        enum RestartFlags
+        internal enum RestartFlags
         {
             NONE = 0,
             RESTART_CYCLICAL = 1,

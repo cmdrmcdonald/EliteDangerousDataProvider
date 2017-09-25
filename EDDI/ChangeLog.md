@@ -1,4 +1,97 @@
-#2.3.0
+# CHANGE LOG
+
+### 2.4.0-b4
+
+
+### 2.4.0-b3
+  * Core
+    * EDDI's version number is now shown in the application's title bar
+    * Module events now update the ship object
+	* Internal clean-up: now 100% green on unit tests, compiler warnings and code analyser issues
+  * Events
+    * Add 'Module sold remote' event
+    * Add 'Module transfer' event
+    * Add 'Modules stored' event
+    * Revised variable names for module events
+  * Speech Responder
+    * 'Module purchased' event - new script
+    * 'Module retrieved' event - new script
+    * 'Module sold' event - new script
+    * 'Module sold remote' event - new script
+    * 'Module stored' event - new script
+    * 'Module swapped' event - new script
+    * 'Module transfer' event new script
+    * 'Modules stored' event - new script
+
+### 2.4.0-b2
+  * Installer
+    * Fixed: the installer was missing some of the documentation files. This was causing the app to pine for the fjords. And the documentation files.
+
+### 2.4.0-b1
+  * Core
+    * Add 'DataScan' definition for types of datalink scans
+	* Add new roles to the Ship Monitor
+	* Add material type information to the Material Monitor
+    * Add hyperlinks to EDDI.exe, linking to readme.md & the EDDI wiki
+	* Change Log incorporated via hyperlink in the main window - no more need to check the forums when something changes
+	* Changed the format for calling ring composition. Was 'composition.name', is 'composition'
+	* Stellar belt clusters are now included in the definition of rings.
+    * Update Readme.md to use revised hyperlinks pointing to the new project page.
+    * Update Troubleshooting.md to use revised hyperlinks pointing to the new project page.
+	* Update Variables.md to include information available for rings in 'Body scanned' and 'Star scanned' events
+  * Events
+    * Add 'AFMU repairs' event
+	* Add 'Community goal' event
+    * Add 'Data scanned' event when some type of datalinks (Data Links, Data Posts, Abandoned Data Logs, Listerning Posts, Wrecked Ships) are scanned
+    * Add 'Data voucher awarded' event when you are awarded a data voucher
+	* Add 'Friends status' event when a friendly commander changes status
+    * Add 'Module purchased' event
+    * Add 'Module retrieved' event
+    * Add 'Module sold' event
+    * Add 'Module stored' event
+    * Add 'Module swapped' event
+	* Add 'Mission redirected' event
+	* Add 'Nav beacon scan' event
+	* Add 'Music' event (triggered when the game music 'mood' changes)
+	* Add 'Repair drone' event
+	* Add 'Search and rescue' event when delivering items to a Search and Rescue contact
+	* Add 'Ship sold on rebuy' event when when you sell a ship to raise funds on the insurance / rebuy screen
+	* Clarified "channel" in 'Message received' to include 'npc' 
+	* Update 'Body scanned' event to check whether BodyDetails successfully located the body
+	* Update 'Message received' event, EDDI now distinguishes between a larger variety of message sources
+	* Update 'Bond redeemed', 'Bounty redeemed', 'Fine paid', 'Data voucher redeemed', and 'Trade voucher redeemed' events to add Broker Percentage when redeemed via broker
+	* Update 'Docked' event, now includes a list of station services under 'stationservices'
+	* Update 'Mission accepted' event to correct a bug preventing wanted passengers from being detected
+	* Update 'Jumped' and 'Location' events to include system population, when present
+    * Update 'Screenshot' event, now contains longitude & latitude, when appropriate
+	* Update 'Ship sold' event, now contains a value for the system where the ship was sold
+	* Update 'Shipyard transfer' event, now includes transfer time
+	* Update 'Star scanned' event to add luminosity class property
+  * Speech Responder
+    * Add Spacialise() Cottle function.  Details on how to use this are in the SpeechResponder documentation
+	* Add StartsWithVowel() Cottle function. Details on how to use this are in the SpeechResponder documentation
+	* Script changes:
+	  * 'AFMU repairs' - new script
+	  * 'Community goal' - new script'
+	  * 'Bond redeemed' - revised to correctly get faction names and faction amounts
+	  * 'Data scanned' - new script
+	  * 'Data voucher awarded' - new script
+	  * 'Died' - new script
+	  * 'Docking granted' script revised to recognize asteroid bases
+ 	  * 'Friends status' - new script
+      * 'Galnet news published' script revised to only ready out the titles & content of interesting articles
+	  * 'Limpet purchased' - new script
+	  * 'Limpet sold' - new script
+      * 'Mission redirected' - new script
+	  * 'Music' - new script
+      * 'Nav beacon scan' - new script
+	  * 'Power expansion vote cast' - new script
+ 	  * 'Repair drone' - new script
+	  * 'Search and rescue' - new script
+      * 'Ship sold' - revised to include location for ships sold remotely
+	  * 'Sold ship on rebuy' - new script
+
+## 2.3.0
   * Core
     * Tidy ups for reading from and writing to files to catch potential exceptions
     * Do not send data to EDSM or EDDN if in a multicrew session
@@ -175,21 +268,21 @@
       * 'What do I need for <blueprint>' - Find out the materials required for a particular blueprint
       * 'How many <blueprint> can I make' - Find out how many of a particular blueprint you can make with your current inventory
 
-#2.2.3
+## 2.2.3
   * Fix issue where undocumented change in Frontier API would cause EDDI to crash
   * Update netlog monitor to handle new log format
   * Add ship definition for Dolphin
   * Add module definitions for Dolphin bulkheads
 
-#2.2.2
+## 2.2.2
   * Make a nuber of scan items optional for compatibility with Elite 2.3
 
-#2.2.1
+## 2.2.1
   * Add mechanism to see if game version is beta or production, using remote production build list if available
   * Update EDSM responder to not send data if game version is beta
   * Update EDDN responder to send data to /test schemas if game version is beta
 
-#2.2.0
+## 2.2.0
   * Core
     * Fix issue where commander insurance % is not set internally
     * Add assisated upgrade for new versions of EDDI
@@ -256,7 +349,7 @@
   * Misc
     * Send additional data to EDSM
 
-#2.1.0
+## 2.1.0
   * Core
     * Add 'stolen' flag and 'missionid' identifier to cargo
     * Use more intelligent method to work from FD names to definitions for commodities, and provide better fallback names if missing
@@ -323,14 +416,14 @@
     * Add ability to set state variables from VoiceAttack.  Details on how to use this are in the VoiceAttack documentation
     * Ensure that VoiceAttack decimal values are not written as integers
 
-#2.0.13
+## 2.0.13
   * Fix issue where engineer rank journal message without rank would cause a crash
   * Allow non-string sample events for testing scripts
   * Add sample galnet news event for testing
   * Do not throw spurious errors when shutting down
   * Ensure that stellar class VoiceAttack variable is unset if the information available
 
-#2.0.12
+## 2.0.12
   * Avoid bug in journal where superpower promotions are logged as combat promotions
   * Update shield resistances with booster stats when exporting ship
   * Add body information to speech responder
@@ -343,14 +436,14 @@
   * Update 'Jumping' script: add warning if jumping to known white dwarf or neutron star
   * Update 'Body scanned' script: fix typo where 'higher' was written 'higer'
 
-#2.0.11
+## 2.0.11
   * Further fixes for renamed and missing fields in 2.2.02
   * Add "log out" option for companion API tab in UI
   * Provide internal Nullable values in VoiceAttack
   * Update VoiceAttack documentation with new variables
   * Credentials are removed on EDDI uninstall
 
-#2.0.10
+## 2.0.10
   * Update documentation for material and rarity information
   * Update coriolis export for Beluga Liner
   * Help large star system databases by adding an index
@@ -362,14 +455,14 @@
   * Add "Modification applied" event
   * Add "Engineer progressed" event
 
-#2.0.9
+## 2.0.9
   * Do not update ship configuration when data is not available from the companion API
   * Be a little harsher when shutting down speech threads on close
   * Make home station accessible to scripts
   * Make current station more dynamic to match reality
   * Fix crash when bringing up help windows from VoiceAttack
 
-#2.0.8
+## 2.0.8
   * Update coriolis export with additional properties for improved accuracy
   * Handle "Profile unavailable" response from companion API
   * Provide ship model rather than manufacturer to Coriolis
@@ -380,7 +473,7 @@
   * Fix potential crash when station model is undefined
   * Update default docking and swapout scripts to make them less chatty
 
-#2.0.7
+## 2.0.7
   * Add ship's main and total fuel tank capacities
   * Add capability to upload logs to EDDI server
   * Add ability to access EDDI's confguration UI from VoiceAttack
@@ -391,7 +484,7 @@
   * Update coriolis export to include modifications
   * Fix gravity and terraformstate for planets (thanks to Michael Werle)
 
-#2.0.6
+## 2.0.6
   * Update ship information when undocking
   * Retain ship information between relogs
   * Attempt to avoid crashes when configuration files have been corrupted
@@ -405,34 +498,35 @@
   * Updated troubleshooting guide
   * Updated VoiceAttack system variables
 
-#2.0.5
+## 2.0.5
   * Added fuel used and fuel remaining to JumpedEvent
   * Handle missing data in body scans
   * Fix incorrect name of key in ShipyardNew
   * Update text on speech responder tab to be more informative about copying personalities
   * Fix oddity in jumping script where EDDI thought that 'None' was a real allegiance
 
-#2.0.4
+## 2.0.4
    * Add FDev IDs for new ships and modules
    * Add phonetic pronunciation for Lakon
    * Fix issue where unknown IDs could cause a crash
 
-#2.0.3
+## 2.0.3
    * Fix issue where jumps are not announced if the companion API is unavailable
 
-#2.0.2
+## 2.0.2
   * Fix crash when companion API does not return correct information
   * Fix crash when starting EDDI after Elite has started
   * Attempt to patch around missing information when companion API does not provide it
 
-#2.0.1
+## 2.0.1
   * Complete rework of product and VoiceAttack integration
   * EDDI no longer dependent on VoiceAttack for spoken responses to events
   * Use Frontier journal in addition to netlog to provide more events
   * Plugin architecture for monitors (that provide events) and responders (that act on events)
   * Introduction of personalities - bundles of responses for the speech responder 
   * Fix issue with text-to-speech engines mispronouncing sector names with two-letter phrases such as DR and NY
-#1.4.0
+
+## 1.4.0
   * Rework network communications to provide better debug information
   * Unify logging to a single file
   * Always use the selected voice's default language when using phonemes
@@ -441,7 +535,7 @@
   * Use local store as primary for star system data and update EDSM asynchronously
   * Silently drop existing phonetic ship names with invalid IPA
 
-#1.3.5
+## 1.3.5
   * Tweaks to increase volume of processed voice
   * Fix issue with last utility slots on large ships being missed
   * Add verbose logging option to configuration UI
@@ -451,7 +545,7 @@
   * Provide local co-ordinates when systems are not available in EDSM
   * Never write credentials to log file
 
-#1.3.1
+## 1.3.1
   * Add station variables.  Note that these are all prefixed 'Last station' because there is no way of knowing if a ship is currently docked at a station or has already left it from the information provided in the API
       * Last station name (string): the name of the last station
       * Last station faction (string): the name of the controlling faction of the last station
@@ -472,7 +566,7 @@
   * Add more system translations
   * Fix issue with 0-cargo ships causing profile problems
 
-#1.3.0
+## 1.3.0
   * Fix issue where unknown systems provided an incorrect JSON result
   * Add command to show the current system in EDDB
   * Add command to show the current station in EDDB
@@ -480,14 +574,14 @@
   * Fix isue where hardpoints returned out of order resulted in incorrect export URL for Coriolis
   * Log engineer modifications as part of module definition
 
-#1.2.2
+## 1.2.2
   * Fix issue where shipyard would not be populated in some situations
   * Close down HTTP responses sooner, hopefully fixing occasional hangs
   * Populate the email address field in the configuration GUI from stored data if available
   * Ensure that co-ordinates are sent to EDSM in US format regardless of client locale
   * Added 'System orbital stations' value
 
-#1.2.1
+## 1.2.1
   * Added modules from 1.6/2.1
   * Added commodities from 1.6/2.1
   * Support for new modules when exporting to Coriolis
@@ -495,7 +589,7 @@
   * Added more star system translations
   * Removed requirement for verbose logging
 
-#1.2.0
+## 1.2.0
   * Compatibility with Elite: Dangerous 1.6/2.1
   * Fixed issue where unknown station models would cause EDDI to crash
   * Fixed issue where commander's home system and insurance discount were reset on configuration startup
@@ -504,7 +598,7 @@
   * Send system co-ordinates to EDSM as part of the travel log if available
   * Added more star system translations
 
-#1.1.0
+## 1.1.0
   * Fixed issue where EDDI would need the user to log in repeatedly to maintain a connection to the Elite servers
   * Added configuration option to set insurance excess percentage
   * Added Insurance (decimal): the percentage insurance excess (usually 5, 3.75 or 2.5)
@@ -517,25 +611,25 @@
   * Added phonetic pronunciation for ship names
   * Added further Powerplay weapons
 
-#1.0.0
+## 1.0.0
   * Fix minor VoiceAttack script issues
 
-#0.9.4
+## 0.9.4
   * Added 'System distance from home'
   * Provide information about primary faction, number of stations and distance from home with the system report
   * Added 'Tell me about this system' command to trigger the system report
   * Reworked star system name translation routines to provide correct result in more situations
 
-#0.9.3
+## 0.9.3
   * Move to internal speech generation routines for computer voice
 
-#0.9.2
+## 0.9.2
   * Fix issue where sold ships still showed up in the shipyard
   * Add information on modules and hardpoints to damage and outfitting reports
   * Add missing IDs for some EDDB->Coriolis mappings
   * Fix issue where removed ship names are not treated as absent
 
-#0.9.1
+## 0.9.1
   * Added ship variables for hardpoints and internal compartments
     * Ship tiny/small/medium/large/huge hardpoint *n* occupied (boolean): true if there is a module in this slot, otherwise false
     * Ship tiny/small/medium/large/huge hardpoint *n* module (string): the name of the module in this slot
@@ -559,26 +653,26 @@
   * Created separate variable debug commands for commander, ship, ship hardpoints, ship compartments, and shipyard
   * Ensure that 'System power' is not set if a system is not controlled by a power
 
-#0.9.0
+## 0.9.0
   * Fix issue where setting a home system caused scripts not to report system information
   * Do not create 'system change' or 'location change' events when in CQC 
 
-#0.8.9
+## 0.8.9
   * Provide starsystem information even if profile is not available
 
-#0.8.8
+## 0.8.8
   * Fix crash if starsystem has no stations
 
-#0.8.7
+## 0.8.7
   * Avoid VoiceAttack bug that causes VoiceAttack to crash
 
-#0.8.6
+## 0.8.6
   * Added more checks for correct system data prior to triggering system change event
   * Added debug value for the event loop
   * Separated the event loop from the startup, to provide better reliability for the event loop [B]Anyone updating will need to change the startup command in their profile from EDDI event loop to EDDI startup[/B]
   * Added 'System minutes since previous visit' value
 
-#0.8.5
+## 0.8.5
   * Added callsigns, names and roles for ships
   * Added home system and station
   * Added more events in the handler.  These are often triggered by voice actions themselves, but have been built in this way to allow for the future when these events become available directly to EDDI
@@ -587,27 +681,27 @@
   * Add ship name and callsign to coriolis export
   * Provided a number of voice-activated commands; see the README for details
 
-#0.8.0
+## 0.8.0
   * Added EDSM integration: provide the ability for EDDI to send data to EDSM, keeping a log of every system you have visited
   * Ensure that "Last system rank" is set appropriately
   * Move from 'Login' to 'Configuration' binary for setting up EDDI
 
-#0.7.3
+## 0.7.3
   * Event loop only returns if there is a new event to handle
   * Avoid problems if VA_Init1() is called multiple times
   * Added decimal variables 'Stored ship *n* distance' for the distance to each stored ship from the current system
 
-#0.7.2
+## 0.7.2
   * Ensure that Environment is set on startup
   * Ensure that cached system data is refreshed correctly
 
-#0.7.1
+## 0.7.1
   * Fix issue where Empire rating was showing incorrectly with Federation names
   * Catch errors when authenticating and obtaining the first profile and display a suitable error message
   * Added text variables "Ship model (spoken)", "System name (spoken)", "System power (spoken)", "Last system name (spoken)" and "Last system power (spoken)" to provide values that fit the text-to-speech engine
   * Renamed string variables "Credits", "Debt", "Ship value", "System population", "Last system population", "Ship <module> station discount" to have the " (spoken)" suffix.  The old names of the variables will be removed in the next major release.
 
-#0.7.0
+## 0.7.0
 
   * Deprecated int variables "Credits", "Debt", "Ship value", "System population", "Last system population" in favour of decimal values with the same name.  The int variables were in thousands due to int limits and the decimal values are in units.  The int variables will be removed in the next major release
   * Added event loop to monitor the netlog
@@ -619,7 +713,7 @@
   * Added text variable "Environment" that lists the current environment ("Normal space" or "Supercruise")
   * Fixed issue where templates were updated with commander data, resulting in incorrect data after the first refresh
 
-#0.6.1
+## 0.6.1
 
   * Added int variable "System stations" with the number of stations (of all types) in the system
   * Added int variable "System starports" with the number of starports in the system
@@ -635,7 +729,7 @@
   * Added int variable "Last system planetary ports" with the number of planetary ports in the last system
   * Added string variable 'Ship size' containing the size of the ship (Small, Medium or Large)
 
-#0.6.0
+## 0.6.0
 
   * Added decimal variables 'System X' 'System Y', 'System Z', 'Last system X', 'Last system Y', 'Last system Z' using EDDB co-ordinates
   * Added decimal variable 'Just jump' with the distance of the last jump in LY to two decimal places
@@ -643,5 +737,5 @@
   * Added int variable 'Stored ships' with the number of ships in storage
   * Added string variables 'Stored ship *n* model', 'Stored ship *n* system' and 'Stored ship *n* location' for each ship in storage
 
-#0.5.0
+## 0.5.0
 Initial release
