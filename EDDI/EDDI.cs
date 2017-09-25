@@ -254,7 +254,7 @@ namespace Eddi
 
             try
             {
-                ServerInfo updateServerInfo = ServerInfo.FromServer("http://api.eddp.co/");
+                ServerInfo updateServerInfo = ServerInfo.FromServer("http://edcd.github.io/EDDP/");
                 if (updateServerInfo == null)
                 {
                     Logging.Warn("Failed to contact update server");
@@ -308,7 +308,7 @@ namespace Eddi
         {
             try
             {
-                ServerInfo updateServerInfo = ServerInfo.FromServer("http://api.eddp.co/");
+                ServerInfo updateServerInfo = ServerInfo.FromServer("http://edcd.github.io/EDDP/");
                 if (updateServerInfo == null)
                 {
                     Logging.Warn("Failed to contact update server");
@@ -321,7 +321,7 @@ namespace Eddi
                     if (Versioning.Compare(info.minversion, Constants.EDDI_VERSION) == 1)
                     {
                         Logging.Warn("This version of Eddi is too old to operate; please upgrade at " + info.url);
-                        SpeechService.Instance.Say(null, "This version of Eddiis too old to operate; please upgrade.", true);
+                        SpeechService.Instance.Say(null, "This version of Eddi is too old to operate; please upgrade.", true);
                         UpgradeRequired = true;
                         UpgradeLocation = info.url;
                         UpgradeVersion = info.version;
@@ -373,7 +373,7 @@ namespace Eddi
             catch (Exception ex)
             {
                 SpeechService.Instance.Say(null, "There was a problem connecting to external data services; some features may be temporarily unavailable", false);
-                Logging.Warn("Failed to access api.eddp.co", ex);
+                Logging.Warn("Failed to access http://edcd.github.io/EDDP/", ex);
             }
             return true;
         }
@@ -729,6 +729,10 @@ namespace Eddi
                     else if (journalEvent is FighterDockedEvent)
                     {
                         passEvent = eventFighterDocked((FighterDockedEvent)journalEvent);
+                    }
+                    else if (journalEvent is BeltScannedEvent)
+                    {
+                        passEvent = eventBeltScanned((BeltScannedEvent)journalEvent);
                     }
                     else if (journalEvent is StarScannedEvent)
                     {
@@ -1173,6 +1177,35 @@ namespace Eddi
             // We are back in the ship
             Vehicle = Constants.VEHICLE_SHIP;
             return true;
+        }
+
+        private bool eventBeltScanned(BeltScannedEvent theEvent)
+        {
+            // We just scanned a star.  We can only proceed if we know our current star system
+            if (CurrentStarSystem != null)
+            {
+                Body belt = CurrentStarSystem.bodies?.FirstOrDefault(b => b.name == theEvent.name);
+                if (belt == null)
+                {
+                    Logging.Debug("Scanned belt " + theEvent.name + " is new - creating");
+                    // A new item - set it up
+                    belt = new Body();
+                    belt.EDDBID = -1;
+                    belt.type = "Star";
+                    belt.name = theEvent.name;
+                    belt.systemname = CurrentStarSystem?.name;
+                    CurrentStarSystem.bodies?.Add(belt);
+                }
+
+                // Update with the information we have
+
+                belt.distance = (long?)theEvent.distancefromarrival;
+
+                CurrentStarSystem.bodies?.Add(belt);
+                Logging.Debug("Saving data for scanned belt " + theEvent.name);
+                StarSystemSqLiteRepository.Instance.SaveStarSystem(CurrentStarSystem);
+            }
+            return CurrentStarSystem != null;
         }
 
         private bool eventStarScanned(StarScannedEvent theEvent)

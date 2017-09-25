@@ -215,6 +215,36 @@ namespace EddiSpeechResponder
                 return @"<audio src=""" + values[0].AsString + @""" />";
             }, 1);
 
+            store["Spacialise"] = new NativeFunction((values) =>
+            {
+                string Entree = values[0].AsString;
+                if (Entree == "")
+                { return ""; }
+                string Sortie = "";
+                string UpperSortie = "";
+                foreach (char c in Entree)
+                {
+                    Sortie = Sortie + c + " ";
+                }
+                UpperSortie = Sortie.ToUpper();
+                return UpperSortie;
+
+            }, 1);
+
+            store["StartsWithVowel"] = new NativeFunction((values) =>
+            {
+                string Entree = values[0].AsString;
+                if (Entree == "")
+                { return ""; }
+
+                char[] vowels = { 'a', 'à', 'â', 'ä', 'e', 'ê', 'é', 'è', 'ë', 'i', 'î', 'ï', 'o', 'ô', 'ö', 'u', 'ù', 'û', 'ü', 'œ', 'y' };
+                char firstCharacter = Entree.ToLower().ToCharArray().ElementAt(0);
+                Boolean result = vowels.Contains(firstCharacter);
+
+                return result;
+
+            }, 1);
+
             //
             // Commander-specific functions
             //
