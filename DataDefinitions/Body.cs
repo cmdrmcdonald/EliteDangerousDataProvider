@@ -50,6 +50,9 @@ namespace EddiDataDefinitions
         /// <summary>The stellar class of the star</summary>
         public string stellarclass;
 
+        /// <summary>The Luminosity Class of the Star (since 2.4)</summary>
+        public string luminosityclass { get; set; }
+
         /// <summary>The solar mass of the star</summary>
         public decimal? solarmass;
 
@@ -113,6 +116,9 @@ namespace EddiDataDefinitions
 
         // materials
         public List<MaterialPresence> materials;
+
+        // The reserve level
+        public string reserves;
 
         /// <summary>
         /// Convert gravity in m/s to g

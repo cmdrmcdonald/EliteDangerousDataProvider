@@ -13,7 +13,7 @@ namespace EddiShipMonitor
     {
         private static List<string> HARDPOINT_SIZES = new List<string>() { "Huge", "Large", "Medium", "Small", "Tiny" };
 
-        // Translations from the internal names used by Frontier to clean human-readable
+        // Translations from the internal names used by Frontier to clean human-readable - Legacy code, not used.
         private static Dictionary<string, string> shipTranslations = new Dictionary<string, string>()
         {
             { "Adder" , "Adder"},
@@ -98,7 +98,17 @@ namespace EddiShipMonitor
             try
             {
                 Ship.raw = json.ToString(Formatting.None);
+                /// As of 2.3.0 Frontier no longer supplies module information for ships other than the active ship. 
+                /// 'Health' is only given in the complete un-summarized json.
+                /// Get the raw only if it is complete.
+                if (!(Ship.raw).Contains("health"))
+                {
+                    Ship.raw = null;
+                }
+
                 Ship.LocalId = json.GetValue("id").Value<int>();
+                Ship.name = (string)json.GetValue("shipName");
+                Ship.ident = (string)json.GetValue("shipID");
 
                 Ship.value = (long)(json["value"]?["hull"] ?? 0) + (long)(json["value"]?["modules"] ?? 0);
                 Ship.cargocapacity = (int)(json["cargo"]?["capacity"] ?? 0);
