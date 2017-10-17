@@ -12,6 +12,7 @@ using System.Linq;
 using System.Net;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Threading;
 using Utilities;
 
 namespace EddiCompanionAppService
@@ -23,6 +24,8 @@ namespace EddiCompanionAppService
         private static string LOGIN_URL = "/user/login";
         private static string CONFIRM_URL = "/user/confirm";
         private static string PROFILE_URL = "/profile";
+        private static string MARKET_URL = "/market";
+        private static string SHIPYARD_URL = "/shipyard";
 
         // We cache the profile to avoid spamming the service
         private Profile cachedProfile;
@@ -206,7 +209,7 @@ namespace EddiCompanionAppService
                 return cachedProfile;
             }
 
-            string data = obtainProfile();
+            string data = obtainProfile(BASE_URL + PROFILE_URL);
 
             if (data == null || data == "Profile unavailable")
             {
@@ -221,8 +224,10 @@ namespace EddiCompanionAppService
                 else
                 {
                     // Looks like login worked; try again
-                    data = obtainProfile();
+                    data = obtainProfile(BASE_URL + PROFILE_URL);
+
                     if (data == null || data == "Profile unavailable")
+
                     {
                         // No luck with a relogin; give up
                         SpeechService.Instance.Say(null, "Access to Frontier API has been lost.  Please update your information in Eddi's Frontier API tab to re-establish the connection.", false);
@@ -234,7 +239,9 @@ namespace EddiCompanionAppService
 
             try
             {
+                JObject json = JObject.Parse(data);
                 cachedProfile = ProfileFromJson(data);
+				
             }
             catch (JsonException ex)
             {
@@ -252,9 +259,61 @@ namespace EddiCompanionAppService
             return cachedProfile;
         }
 
-        private string obtainProfile()
+        public Profile Station()
         {
-            HttpWebRequest request = GetRequest(BASE_URL + PROFILE_URL);
+            Logging.Debug("Entered");
+            if (CurrentState != State.READY)
+            {
+                // Shouldn't be here
+                Logging.Debug("Service in incorrect state to provide station data (" + CurrentState + ")");
+                Logging.Debug("Leaving");
+                throw new EliteDangerousCompanionAppIllegalStateException("Service in incorrect state to provide station data (" + CurrentState + ")");
+            }
+
+            try
+            {
+                if (cachedProfile.LastStation.hasmarket ?? false)
+                {
+                    Logging.Debug("Getting station market data");
+                    string market = obtainProfile(BASE_URL + MARKET_URL);
+                    market = "{\"lastStarport\":" + market + "}";
+                    JObject marketJson = JObject.Parse(market);
+                    cachedProfile.LastStation.commodities = CommoditiesFromProfile(marketJson);
+                }
+
+                if (cachedProfile.LastStation.hasoutfitting ?? false)
+                {
+                    Logging.Debug("Getting station outfitting data");
+                    string outfitting = obtainProfile(BASE_URL + SHIPYARD_URL);
+                    outfitting = "{\"lastStarport\":" + outfitting + "}";
+                    JObject outfittingJson = JObject.Parse(outfitting);
+                    cachedProfile.LastStation.outfitting = OutfittingFromProfile(outfittingJson);
+                }
+
+                if (cachedProfile.LastStation.hasshipyard ?? false)
+                {
+                    Logging.Debug("Getting station shipyard data");
+                    Thread.Sleep(5000);
+                    string shipyard = obtainProfile(BASE_URL + SHIPYARD_URL);
+                    shipyard = "{\"lastStarport\":" + shipyard + "}";
+                    JObject shipyardJson = JObject.Parse(shipyard);
+                    cachedProfile.LastStation.shipyard = ShipyardFromProfile(shipyardJson);
+                }
+            }
+            catch (JsonException ex)
+            {
+                Logging.Error("Failed to parse companion station data", ex);
+            }
+
+            Logging.Debug("Station is " + JsonConvert.SerializeObject(cachedProfile));
+            Logging.Debug("Leaving");
+            return cachedProfile;
+        }
+
+
+        private string obtainProfile(string url)
+        {
+            HttpWebRequest request = GetRequest(url);
             using (HttpWebResponse response = GetResponse(request))
             {
                 if (response == null)
@@ -523,9 +582,6 @@ namespace EddiCompanionAppService
                     }
 
                     Profile.LastStation.systemname = Profile.CurrentStarSystem.name;
-                    Profile.LastStation.outfitting = OutfittingFromProfile(json);
-                    Profile.LastStation.commodities = CommoditiesFromProfile(json);
-                    Profile.LastStation.shipyard = ShipyardFromProfile(json);
                 }
             }
 
@@ -562,7 +618,7 @@ namespace EddiCompanionAppService
                 {
                     dynamic module = moduleJson.Value;
                     // Not interested in paintjobs, decals, ...
-                    if (module["category"] == "weapon" || module["category"] == "module")
+                    if (module["category"] == "weapon" || module["category"] == "module" || module["category"] == "utility")
                     {
                         Module Module = ModuleDefinitions.ModuleFromEliteID((long)module["id"]);
                         if (Module.name == null)
@@ -624,7 +680,30 @@ namespace EddiCompanionAppService
         {
             List<Ship> Ships = new List<Ship>();
 
-            // This information is not available at current from the companion app JSON so leave it empty
+            if (json["lastStarport"] != null && json["lastStarport"]["ships"] != null)
+            {
+                foreach (dynamic shipJson in json["lastStarport"]["ships"]["shipyard_list"])
+                {
+                    dynamic ship = shipJson.Value;
+                    Ship Ship = ShipDefinitions.FromEliteID((long)ship["id"]);
+                    if (Ship.EDName != null)
+                    {
+                        Ship.value = (long)ship["basevalue"];
+                        Ships.Add(Ship);
+                    }
+                }
+
+                foreach (dynamic ship in json["lastStarport"]["ships"]["unavailable_list"])
+                {
+                    dynamic shipJson = ship.Value;
+                    Ship Ship2 = ShipDefinitions.FromEliteID((long)ship["id"]);
+                    if (Ship2.EDName != null)
+                    {
+                        Ship2.value = (long)ship["basevalue"];
+                        Ships.Add(Ship2);
+                    }
+                }
+            }
 
             return Ships;
         }

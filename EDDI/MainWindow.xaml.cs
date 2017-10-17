@@ -3,6 +3,7 @@ using EddiDataDefinitions;
 using EddiSpeechService;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Net;
@@ -285,6 +286,7 @@ namespace Eddi
         private void setStatusInfo()
         {
             versionText.Text = Constants.EDDI_VERSION;
+            Title = "EDDI v." + Constants.EDDI_VERSION;
 
             if (EDDI.Instance.UpgradeVersion != null)
             {
@@ -361,7 +363,7 @@ namespace Eddi
                 }
                 catch (Exception)
                 {
-                    companionAppText.Text = "Unable to log in.  This is usually a temporary issue with Frontier's servvice; please try again later";
+                    companionAppText.Text = "Unable to log in.  This is usually a temporary issue with Frontier's service; please try again later";
                 }
             }
             else if (companionAppCodeText.Visibility == Visibility.Visible)
@@ -389,7 +391,7 @@ namespace Eddi
                 }
                 catch (Exception)
                 {
-                    setUpCompanionAppStage1("Unable to log in.  This is usually a temporary issue with Frontier's servvice; please try again later");
+                    setUpCompanionAppStage1("Unable to log in.  This is usually a temporary issue with Frontier's service; please try again later");
                 }
             }
         }
@@ -557,6 +559,12 @@ namespace Eddi
             await Task.Factory.StartNew(() => uploadLog(progress), TaskCreationOptions.LongRunning);
         }
 
+        private void ChangeLog_Click(object sender, RoutedEventArgs e)
+        {
+            ChangeLogWindow changeLog = new ChangeLogWindow();
+            changeLog.Show();
+        }
+
         public static void uploadLog(IProgress<string> progress)
         {
             using (WebClient client = new WebClient())
@@ -566,13 +574,16 @@ namespace Eddi
                     progress.Report("");
                     client.UploadFile("http://api.eddp.co/log", Constants.DATA_DIR + @"\\eddi.log");
                     progress.Report("done");
-                    try
+                    if (false) // temporarily disabled while we fix #91
                     {
-                        File.Delete(Constants.DATA_DIR + @"\\eddi.log");
-                    }
-                    catch (Exception ex)
-                    {
-                        Logging.Error("Failed to delete file after upload", ex);
+                        try
+                        {
+                            File.Delete(Constants.DATA_DIR + @"\\eddi.log");
+                        }
+                        catch (Exception ex)
+                        {
+                            Logging.Error("Failed to delete file after upload", ex);
+                        }
                     }
                 }
                 catch (Exception ex)
@@ -586,6 +597,14 @@ namespace Eddi
         private void upgradeClicked(object sender, RoutedEventArgs e)
         {
             EDDI.Instance.Upgrade();
+        }
+        private void EDDIClicked(object sender, RoutedEventArgs e)
+        {
+            Process.Start("https://github.com/EDCD/EDDI/blob/master/README.md");
+        }
+        private void WikiClicked(object sender, RoutedEventArgs e)
+        {
+            Process.Start("https://github.com/EDCD/EDDI/wiki");
         }
     }
 }
