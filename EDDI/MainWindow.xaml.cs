@@ -3,8 +3,10 @@ using EddiDataDefinitions;
 using EddiSpeechService;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Globalization;
 using System.IO;
+using System.IO.Compression;
 using System.Net;
 using System.Speech.Synthesis;
 using System.Text.RegularExpressions;
@@ -30,6 +32,8 @@ namespace Eddi
         public MainWindow() : this(false) { }
 
         private bool runBetaCheck = false;
+
+        private static readonly object logLock = new object();
 
         public MainWindow(bool fromVA = false)
         {
@@ -285,6 +289,7 @@ namespace Eddi
         private void setStatusInfo()
         {
             versionText.Text = Constants.EDDI_VERSION;
+            Title = "EDDI v." + Constants.EDDI_VERSION;
 
             if (EDDI.Instance.UpgradeVersion != null)
             {
@@ -361,7 +366,7 @@ namespace Eddi
                 }
                 catch (Exception)
                 {
-                    companionAppText.Text = "Unable to log in.  This is usually a temporary issue with Frontier's servvice; please try again later";
+                    companionAppText.Text = "Unable to log in.  This is usually a temporary issue with Frontier's service; please try again later";
                 }
             }
             else if (companionAppCodeText.Visibility == Visibility.Visible)
@@ -389,7 +394,7 @@ namespace Eddi
                 }
                 catch (Exception)
                 {
-                    setUpCompanionAppStage1("Unable to log in.  This is usually a temporary issue with Frontier's servvice; please try again later");
+                    setUpCompanionAppStage1("Unable to log in.  This is usually a temporary issue with Frontier's service; please try again later");
                 }
             }
         }
@@ -548,44 +553,118 @@ namespace Eddi
             e.Handled = !regex.IsMatch(e.Text);
         }
 
-        private async void sendLogsClicked(object sender, RoutedEventArgs e)
+        private async void createGithubIssueClicked(object sender, RoutedEventArgs e)
         {
             // Write out useful information to the log before procedding
             Logging.Info("EDDI version: " + Constants.EDDI_VERSION);
             Logging.Info("Commander name: " + (EDDI.Instance.Cmdr != null ? EDDI.Instance.Cmdr.name : "unknown"));
-            var progress = new Progress<string>(s => sendLogButton.Content = "Uploading log..." + s);
-            await Task.Factory.StartNew(() => uploadLog(progress), TaskCreationOptions.LongRunning);
+
+            // Prepare a truncated log file for export if verbose logging is enabled
+            if (eddiVerboseLogging.IsChecked.Value)
+            {
+                Logging.Debug("Preparing log for export.");
+                var progress = new Progress<string>(s => githubIssueButton.Content = "Preparing log..." + s);
+                await Task.Factory.StartNew(() => prepareLog(progress), TaskCreationOptions.LongRunning);
+            }
+            
+            createGithubIssue();
         }
 
-        public static void uploadLog(IProgress<string> progress)
+        private void ChangeLog_Click(object sender, RoutedEventArgs e)
         {
-            using (WebClient client = new WebClient())
+            ChangeLogWindow changeLog = new ChangeLogWindow();
+            changeLog.Show();
+        }
+
+        public static void prepareLog(IProgress<string> progress)
+        {
+            try
             {
-                try
+                string issueLogDir = Constants.DATA_DIR + @"\logexport\";
+                string issueLogFile = issueLogDir + "eddi_issue.log";
+                string desktopPath = Environment.GetFolderPath(Environment.SpecialFolder.Desktop) + @"\eddi_issue.zip";
+
+                string[] log;
+                lock (logLock)
                 {
-                    progress.Report("");
-                    client.UploadFile("http://api.eddp.co/log", Constants.DATA_DIR + @"\\eddi.log");
-                    progress.Report("done");
+                    log = File.ReadAllLines(Constants.DATA_DIR + @"\eddi.log");
+                }
+                if (log.Length == 0) { return; }
+
+                progress.Report("");
+                List<string> outputLines = new List<string>();
+                // Use regex to isolate DateTimes from the string
+                Regex recentLogsRegex = new Regex(@"^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})");
+
+                foreach (string line in log)
+                {
                     try
                     {
-                        File.Delete(Constants.DATA_DIR + @"\\eddi.log");
+                        // Parse log file lines so that we can examine DateTimes
+                        string linedatestring = recentLogsRegex.Match(line).Value;
+                        string formatString = "s"; // i.e. DateTimeFormatInfo.SortableDateTimePattern
+                        if (DateTime.TryParseExact(linedatestring, formatString, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out DateTime linedate))
+                        {
+                            linedate = linedate.ToUniversalTime();
+                            double elapsedHours = (DateTime.UtcNow - linedate).TotalHours;
+                            // Fill the issue log with log lines from the most recent hour only
+                            if (elapsedHours < 1.0)
+                            {
+                                outputLines.Add(line);
+                            }
+                        }
                     }
-                    catch (Exception ex)
+                    catch (Exception)
                     {
-                        Logging.Error("Failed to delete file after upload", ex);
+                        // Do nothing, adding to the debug log creates a feedback loop
                     }
                 }
-                catch (Exception ex)
+                if (outputLines.Count == 0)
                 {
-                    progress.Report("failed");
-                    Logging.Error("Failed to upload log", ex);
+                    Logging.Error("Error parsing log. Algorithm failed to return any matches.");
+                    return;
                 }
+
+                // Create a temporary issue log file, delete any remnants from prior issue reporting
+                Directory.CreateDirectory(issueLogDir);
+                File.WriteAllLines(issueLogFile, outputLines);
+
+                // Copy the issue log & zip it to the desktop so that it can be added to the Github issue
+                File.Delete(desktopPath);
+                ZipFile.CreateFromDirectory(issueLogDir, desktopPath);
+
+                // Clear the temporary issue log file & directory
+                File.Delete(issueLogFile);
+                Directory.Delete(issueLogDir);
+
+                progress.Report("done");
             }
+            catch (Exception ex)
+            {
+                progress.Report("failed");
+                Logging.Error("Failed to prepare log", ex);
+
+            }
+        }
+
+        private void createGithubIssue()
+        {
+            Process.Start("https://github.com/EDCD/EDDI/issues/new");
         }
 
         private void upgradeClicked(object sender, RoutedEventArgs e)
         {
             EDDI.Instance.Upgrade();
+        }
+
+        private void EDDIClicked(object sender, RoutedEventArgs e)
+        {
+            Process.Start("https://github.com/EDCD/EDDI/blob/master/README.md");
+        }
+
+        private void WikiClicked(object sender, RoutedEventArgs e)
+        {
+            Process.Start("https://github.com/EDCD/EDDI/wiki");
         }
     }
 }

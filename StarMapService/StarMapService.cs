@@ -1,4 +1,5 @@
 ﻿using EddiDataDefinitions;
+using EddiDataProviderService;
 using Newtonsoft.Json;
 using RestSharp;
 using RestSharp.Deserializers;
@@ -26,7 +27,7 @@ namespace EddiStarMapService
         private string apiKey;
         private string baseUrl;
 
-        public StarMapService(string apiKey, string commanderName, string baseUrl="http://www.edsm.net/")
+        public StarMapService(string apiKey, string commanderName, string baseUrl="https://www.edsm.net/")
         {
             this.apiKey = apiKey;
             this.commanderName = commanderName;
@@ -36,7 +37,7 @@ namespace EddiStarMapService
         public void sendStarMapLog(DateTime timestamp, string systemName, decimal? x, decimal? y, decimal? z)
         {
             var client = new RestClient(baseUrl);
-            var request = new RestRequest("api-logs-v1/set-log");
+            var request = new RestRequest("api-logs-v1/set-log", Method.POST);
             request.AddParameter("apiKey", apiKey);
             request.AddParameter("commanderName", commanderName);
             request.AddParameter("systemName", systemName);
@@ -86,7 +87,7 @@ namespace EddiStarMapService
         public void sendCredits(decimal credits, decimal loan)
         {
             var client = new RestClient(baseUrl);
-            var request = new RestRequest("api-commander-v1/set-credits");
+            var request = new RestRequest("api-commander-v1/set-credits", Method.POST);
             request.AddParameter("apiKey", apiKey);
             request.AddParameter("commanderName", commanderName);
             request.AddParameter("balance", credits);
@@ -129,7 +130,7 @@ namespace EddiStarMapService
             int empire, int empireProgress)
         {
             var client = new RestClient(baseUrl);
-            var request = new RestRequest("api-commander-v1/set-ranks");
+            var request = new RestRequest("api-commander-v1/set-ranks", Method.POST);
             request.AddParameter("apiKey", apiKey);
             request.AddParameter("commanderName", commanderName);
             request.AddParameter("Combat", combat + ";" + combatProgress);
@@ -171,7 +172,7 @@ namespace EddiStarMapService
         public void sendMaterials(Dictionary<string, int> materials)
         {
             var client = new RestClient(baseUrl);
-            var request = new RestRequest("api-commander-v1/set-materials");
+            var request = new RestRequest("api-commander-v1/set-materials", Method.POST);
             request.AddParameter("apiKey", apiKey);
             request.AddParameter("commanderName", commanderName);
             request.AddParameter("type", "materials");
@@ -209,7 +210,7 @@ namespace EddiStarMapService
         public void sendData(Dictionary<string, int> data)
         {
             var client = new RestClient(baseUrl);
-            var request = new RestRequest("api-commander-v1/set-materials");
+            var request = new RestRequest("api-commander-v1/set-materials", Method.POST);
             request.AddParameter("apiKey", apiKey);
             request.AddParameter("commanderName", commanderName);
             request.AddParameter("type", "data");
@@ -246,8 +247,16 @@ namespace EddiStarMapService
 
         public void sendShip(Ship ship)
         {
+            if (ship == null)
+            {
+                return;
+            }
+
             var client = new RestClient(baseUrl);
-            var request = new RestRequest("api-commander-v1/update-ship");
+            var request = new RestRequest("api-commander-v1/update-ship", Method.POST);
+            string coriolis_uri = ship.CoriolisUri();
+            string edshipyard_uri = ship.EDShipyardUri();
+
             request.AddParameter("apiKey", apiKey);
             request.AddParameter("commanderName", commanderName);
             request.AddParameter("shipId", ship.LocalId);
@@ -257,19 +266,25 @@ namespace EddiStarMapService
             request.AddParameter("paintJob", ship.paintjob);
             request.AddParameter("cargoQty", ship.cargocarried);
             request.AddParameter("cargoCapacity", ship.cargocapacity);
-            request.AddParameter("linkToCoriolis", ship.CoriolisUri());
-
+            request.AddParameter("linkToEDShipyard", edshipyard_uri);
+            request.AddParameter("linkToCoriolis", coriolis_uri);
+            
             Thread thread = new Thread(() =>
             {
                 try
                 {
-                    Logging.Debug("Sending data to EDSM: " + client.BuildUri(request).AbsoluteUri);
+                    Logging.Debug("Sending ship data to EDSM: " + client.BuildUri(request).AbsoluteUri);
                     var clientResponse = client.Execute<StarMapLogResponse>(request);
-                    StarMapLogResponse response = clientResponse.Data;
                     Logging.Debug("Data sent to EDSM");
-                    if (response.msgnum != 100)
+                    StarMapLogResponse response = clientResponse.Data;
+                    if (response == null)
                     {
-                        Logging.Warn("EDSM responded with " + response.msg);
+                        Logging.Warn($"EDSM rejected ship data with {clientResponse.ErrorMessage}");
+                        return;
+                    }
+                    else
+                    {
+                        Logging.Debug($"EDSM response {response.msgnum}: " + response.msg);
                     }
                 }
                 catch (ThreadAbortException)
@@ -289,7 +304,7 @@ namespace EddiStarMapService
         public void sendShipSwapped(int shipId)
         {
             var client = new RestClient(baseUrl);
-            var request = new RestRequest("api-commander-v1/set-ship-id");
+            var request = new RestRequest("api-commander-v1/set-ship-id", Method.POST);
             request.AddParameter("apiKey", apiKey);
             request.AddParameter("commanderName", commanderName);
             request.AddParameter("shipId", shipId);
@@ -324,7 +339,7 @@ namespace EddiStarMapService
         public void sendShipSold(int shipId)
         {
             var client = new RestClient(baseUrl);
-            var request = new RestRequest("api-commander-v1/sell-ship");
+            var request = new RestRequest("api-commander-v1/sell-ship", Method.POST);
             request.AddParameter("apiKey", apiKey);
             request.AddParameter("commanderName", commanderName);
             request.AddParameter("shipId", shipId);
@@ -359,7 +374,7 @@ namespace EddiStarMapService
         public void sendStarMapComment(string systemName, string comment)
         {
             var client = new RestClient(baseUrl);
-            var request = new RestRequest("api-logs-v1/set-comment");
+            var request = new RestRequest("api-logs-v1/set-comment", Method.POST);
             request.AddParameter("apiKey", apiKey);
             request.AddParameter("commanderName", commanderName);
             request.AddParameter("systemName", systemName);
@@ -393,7 +408,7 @@ namespace EddiStarMapService
         public string getStarMapComment(string systemName)
         {
             var client = new RestClient(baseUrl);
-            var commentRequest = new RestRequest("api-logs-v1/get-comment");
+            var commentRequest = new RestRequest("api-logs-v1/get-comment", Method.POST);
             commentRequest.AddParameter("apiKey", apiKey);
             commentRequest.AddParameter("commanderName", commanderName);
             commentRequest.AddParameter("systemName", systemName);
@@ -407,7 +422,7 @@ namespace EddiStarMapService
             var client = new RestClient(baseUrl);
 
             // First fetch the data itself
-            var logRequest = new RestRequest("api-logs-v1/get-logs");
+            var logRequest = new RestRequest("api-logs-v1/get-logs", Method.POST);
             logRequest.AddParameter("apiKey", apiKey);
             logRequest.AddParameter("commanderName", commanderName);
             logRequest.AddParameter("systemName", systemName);
@@ -419,7 +434,7 @@ namespace EddiStarMapService
             }
 
             // Also grab any comment that might be present
-            var commentRequest = new RestRequest("api-logs-v1/get-comment");
+            var commentRequest = new RestRequest("api-logs-v1/get-comment", Method.POST);
             commentRequest.AddParameter("apiKey", apiKey);
             commentRequest.AddParameter("commanderName", commanderName);
             commentRequest.AddParameter("systemName", systemName);
@@ -458,7 +473,7 @@ namespace EddiStarMapService
         public Dictionary<string, string> getStarMapComments()
         {
             var client = new RestClient(baseUrl);
-            var request = new RestRequest("api-logs-v1/get-comments");
+            var request = new RestRequest("api-logs-v1/get-comments", Method.POST);
             request.AddParameter("apiKey", apiKey);
             request.AddParameter("commanderName", commanderName);
             var starMapCommentResponse = client.Execute<StarMapCommentResponse>(request);
@@ -482,7 +497,7 @@ namespace EddiStarMapService
         public Dictionary<string, StarMapLogInfo> getStarMapLog(DateTime? since = null)
         {
             var client = new RestClient(baseUrl);
-            var request = new RestRequest("api-logs-v1/get-logs");
+            var request = new RestRequest("api-logs-v1/get-logs", Method.POST);
             request.AddParameter("apiKey", apiKey);
             request.AddParameter("commanderName", commanderName);
             request.AddParameter("fullSync", 1);
@@ -505,7 +520,6 @@ namespace EddiStarMapService
             {
                 foreach (StarMapResponseLogEntry entry in response.logs)
                 {
-                    Logging.Debug("Log entry found for " + entry.system);
                     if (vals.ContainsKey(entry.system))
                     {
                         vals[entry.system].visits = vals[entry.system].visits + 1;
@@ -530,8 +544,38 @@ namespace EddiStarMapService
             }
             return vals;
         }
-    }
 
+        public void Sync(DateTime? since = null)
+        {
+            Logging.Info("Syncing with EDSM");
+            try
+            {
+                Dictionary<string, StarMapLogInfo> systems = getStarMapLog(since);
+                Dictionary<string, string> comments = getStarMapComments();
+                int total = systems.Count;
+                foreach (string system in systems.Keys)
+                {
+                    StarSystem CurrentStarSystem = StarSystemSqLiteRepository.Instance.GetOrCreateStarSystem(system, false);
+                    CurrentStarSystem.visits = systems[system].visits;
+                    CurrentStarSystem.lastvisit = systems[system].lastVisit;
+                    if (comments.ContainsKey(system))
+                    {
+                        CurrentStarSystem.comment = comments[system];
+                    }
+                    StarSystemSqLiteRepository.Instance.SaveStarSystem(CurrentStarSystem);
+                }
+                StarMapConfiguration starMapConfiguration = StarMapConfiguration.FromFile();
+                starMapConfiguration.lastSync = DateTime.UtcNow;
+                starMapConfiguration.ToFile();
+                Logging.Info("EDSM sync completed");
+            }
+            catch (EDSMException edsme)
+            {
+                Logging.Debug("EDSM error received: " + edsme.Message);
+            }
+        }
+    }
+    
     // response from the Star Map distance API
     class StarMapDistanceResponse
     {
@@ -663,29 +707,26 @@ namespace EddiStarMapService
 
         public string RootElement { get; set; }
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2202:Do not dispose objects multiple times")] // this usage is perfectly correct
         public string Serialize(object obj)
         {
             using (var stringWriter = new StringWriter())
+            using (var jsonTextWriter = new JsonTextWriter(stringWriter))
             {
-                using (var jsonTextWriter = new JsonTextWriter(stringWriter))
-                {
-                    serializer.Serialize(jsonTextWriter, obj);
-
-                    return stringWriter.ToString();
-                }
+                serializer.Serialize(jsonTextWriter, obj);
+                return stringWriter.ToString();
             }
         }
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2202:Do not dispose objects multiple times")] // this usage is perfectly correct
         public T Deserialize<T>(RestSharp.IRestResponse response)
         {
             var content = response.Content;
 
             using (var stringReader = new StringReader(content))
+            using (var jsonTextReader = new JsonTextReader(stringReader))
             {
-                using (var jsonTextReader = new JsonTextReader(stringReader))
-                {
-                    return serializer.Deserialize<T>(jsonTextReader);
-                }
+                return serializer.Deserialize<T>(jsonTextReader);
             }
         }
 

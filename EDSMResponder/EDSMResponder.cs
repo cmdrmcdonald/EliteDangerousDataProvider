@@ -118,7 +118,7 @@ namespace EddiEdsmResponder
                     Dictionary<string, int> data = new Dictionary<string, int>();
                     foreach (MaterialAmount ma in materialInventoryEvent.inventory)
                     {
-                        Material material = Material.FromName(ma.material);
+                        Material material = Material.FromEDName(ma.edname);
                         if (material.category == "Element" || material.category == "Manufactured")
                         {
                             materials.Add(material.EDName, ma.amount);
@@ -161,7 +161,6 @@ namespace EddiEdsmResponder
                         starMapService.sendShipSwapped((int)shipDeliveredEvent.shipid);
                     }
                 }
-
                 else if (theEvent is CommanderProgressEvent)
                 {
                     CommanderProgressEvent progressEvent = (CommanderProgressEvent)theEvent;

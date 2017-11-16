@@ -29,6 +29,8 @@ namespace EddiSpeechResponder
 
         private bool subtitlesOnly;
 
+        private int beaconScanCount = 0;
+
         public string ResponderName()
         {
             return "Speech responder";
@@ -116,7 +118,7 @@ namespace EddiSpeechResponder
             scriptResolver = new ScriptResolver(personality.Scripts);
             subtitles = configuration.Subtitles;
             subtitlesOnly = configuration.SubtitlesOnly;
-            Logging.Info("Reloaded " + ResponderName() + " " + ResponderVersion());
+            Logging.Debug("Reloaded " + ResponderName() + " " + ResponderVersion());
         }
 
         public void Handle(Event theEvent)
@@ -132,6 +134,32 @@ namespace EddiSpeechResponder
                 {
                     sayOutLoud = !(bool)tmp;
                 }
+            }
+
+            if (theEvent is NavBeaconScanEvent)
+            {
+                beaconScanCount = ((NavBeaconScanEvent)theEvent).numbodies;
+                Logging.Debug($"beaconScanCount = {beaconScanCount}");
+            }
+            else if (theEvent is StarScannedEvent || theEvent is BodyScannedEvent || theEvent is BeltScannedEvent)
+            {
+                if (beaconScanCount > 0)
+                {
+                    beaconScanCount--;
+                    Logging.Debug("beaconScanCount = " + beaconScanCount.ToString());
+                    return;
+                }
+                if (theEvent is BeltScannedEvent)
+                {
+                    // We ignore belt clusters
+                    return;
+                }
+            }
+
+            // Disable speech from the community goal event for the time being.
+            if (theEvent is CommunityGoalEvent)
+            {
+                return;
             }
 
             Say(scriptResolver, ((ShipMonitor)EDDI.Instance.ObtainMonitor("Ship monitor")).GetCurrentShip(), theEvent.type, theEvent, null, null, null, sayOutLoud);

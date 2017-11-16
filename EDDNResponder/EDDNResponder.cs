@@ -131,7 +131,7 @@ namespace EDDNResponder
             // Can only proceed if we know our current system
 
             // Need to add StarSystem to scan events - can only do so if we have the data
-            if (theEvent is StarScannedEvent || theEvent is BodyScannedEvent)
+            if (theEvent is BeltScannedEvent || theEvent is StarScannedEvent || theEvent is BodyScannedEvent)
             {
                 if (systemName == null || systemX == null || systemY == null || systemZ == null)
                 {
@@ -170,6 +170,7 @@ namespace EDDNResponder
             // When we dock we have access to commodity and outfitting information
             sendCommodityInformation();
             sendOutfittingInformation();
+            sendShipyardInformation();
         }
 
         private void handleMarketInformationUpdatedEvent(MarketInformationUpdatedEvent theEvent)
@@ -177,6 +178,7 @@ namespace EDDNResponder
             // When we dock we have access to commodity and outfitting information
             sendCommodityInformation();
             sendOutfittingInformation();
+            sendShipyardInformation();
         }
 
         private void sendCommodityInformation()
@@ -186,6 +188,18 @@ namespace EDDNResponder
             // API and should be reported
             if (EDDI.Instance.CurrentStation != null && EDDI.Instance.CurrentStation.commodities != null && EDDI.Instance.CurrentStation.commodities.Count > 0 && EDDI.Instance.CurrentStation.commodities[0].avgprice != null)
             {
+                List<EDDNEconomy> eddnEconomies = new List<EDDNEconomy>();
+                if (EDDI.Instance.CurrentStation.economies != null)
+                {
+                    foreach (CompanionAppEconomy economy in EDDI.Instance.CurrentStation.economies)
+                    {
+                        EDDNEconomy eddnEconomy = new EDDNEconomy();
+                        eddnEconomy.name = economy.name;
+                        eddnEconomy.proportion = economy.proportion;
+                        eddnEconomies.Add(eddnEconomy);
+                    }
+                }
+
                 List<EDDNCommodity> eddnCommodities = new List<EDDNCommodity>();
                 foreach (Commodity commodity in EDDI.Instance.CurrentStation.commodities)
                 {
@@ -216,13 +230,22 @@ namespace EDDNResponder
                     data.Add("timestamp", DateTime.Now.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ"));
                     data.Add("systemName", systemName);
                     data.Add("stationName", EDDI.Instance.CurrentStation.name);
+                    if (eddnEconomies.Count > 0)
+                    {
+                        data.Add("economies", eddnEconomies);
+                    }
                     data.Add("commodities", eddnCommodities);
+                    if (EDDI.Instance.CurrentStation.prohibited.Count > 0)
+                    {
+                        data.Add("prohibited", EDDI.Instance.CurrentStation.prohibited);
+                    }
 
                     EDDNBody body = new EDDNBody();
                     body.header = generateHeader();
                     body.schemaRef = "https://eddn.edcd.io/schemas/commodity/3" + (EDDI.Instance.inBeta ? "/test" : "");
                     body.message = data;
 
+                    Logging.Debug("EDDN message is: " + JsonConvert.SerializeObject(body));
                     sendMessage(body);
                 }
             }
@@ -262,6 +285,36 @@ namespace EDDNResponder
             }
         }
 
+        private void sendShipyardInformation()
+        {
+            if (EDDI.Instance.CurrentStation != null && EDDI.Instance.CurrentStation.shipyard != null)
+            {
+                List<string> eddnShips = new List<string>();
+                foreach (Ship ship in EDDI.Instance.CurrentStation.shipyard)
+                {
+                        eddnShips.Add(ship.EDName);
+                }
+
+                // Only send the message if we have ships
+                if (eddnShips.Count > 0)
+                {
+                    IDictionary<string, object> data = new Dictionary<string, object>();
+                    data.Add("timestamp", DateTime.Now.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ"));
+                    data.Add("systemName", EDDI.Instance.CurrentStation.systemname);
+                    data.Add("stationName", EDDI.Instance.CurrentStation.name);
+                    data.Add("ships", eddnShips);
+
+                    EDDNBody body = new EDDNBody();
+                    body.header = generateHeader();
+                    body.schemaRef = "https://eddn.edcd.io/schemas/shipyard/2" + (EDDI.Instance.inBeta ? "/test" : "");
+                    body.message = data;
+
+                    sendMessage(body);
+                }
+            }
+        }
+
+
         private static string generateUploaderId()
         {
             // Uploader ID is a hash of the commander's name
@@ -288,7 +341,6 @@ namespace EDDNResponder
 
         private static void sendMessage(EDDNBody body)
         {
-            Logging.Debug(JsonConvert.SerializeObject(body));
             var client = new RestClient("https://eddn.edcd.io:4430/");
             var request = new RestRequest("upload/", Method.POST);
             request.AddParameter("application/json", JsonConvert.SerializeObject(body), ParameterType.RequestBody);

@@ -39,7 +39,7 @@ namespace EddiDataDefinitions
         {
             this.EDName = EDName;
             this.category = category;
-            this.symbol= symbol;
+            this.symbol = symbol;
             this.name = name;
             this.rarity = rarity;
             this.goodpctbody = goodpctbody;
@@ -98,8 +98,8 @@ namespace EddiDataDefinitions
         public static readonly Material StrangeWakeSolutions = new Material("wakesolutions", "Data", "Strange Wake Solutions", Rarity.Standard);
         public static readonly Material UnexpectedEmissionData = new Material("emissiondata", "Data", "Unexpected Emission Data", Rarity.Standard);
         public static readonly Material UntypicalShieldScans = new Material("shielddensityreports", "Data", "Untypical Shield Scans", Rarity.Standard);
-        public static readonly Material UnknownShipSignature = new Material("unknownshipsignature", "Data", "Unknown Ship Signature", Rarity.Standard);
-        public static readonly Material UnknownWakeScan = new Material("unknownwakedata", "Data", "Unknown Wake Data", Rarity.Standard);
+        public static readonly Material UnknownShipSignature = new Material("unknownshipsignature", "Data", "Thargoid Ship Signature", Rarity.Standard);
+        public static readonly Material UnknownWakeScan = new Material("unknownwakedata", "Data", "Thargoid Wake Data", Rarity.Standard);
 
         public static readonly Material AberrantShieldPatternAnalysis = new Material("shieldpatternanalysis", "Data", "Aberrant Shield Pattern Analysis", Rarity.Rare);
         public static readonly Material AtypicalEncryptionArchives = new Material("encryptionarchives", "Data", "Atypical Encryption Archives", Rarity.Rare);
@@ -116,8 +116,8 @@ namespace EddiDataDefinitions
         public static readonly Material PeculiarShieldFrequencyData = new Material("shieldfrequencydata", "Data", "Peculiar Shield Frequency Data", Rarity.VeryRare);
 
         public static readonly Material BasicConductors = new Material("basicconductors", "Manufactured", "Basic Conductors", Rarity.VeryCommon);
-        public static readonly Material ChemicalStorageUnits = new Material("", "Manufactured", "Chemical Storage Units", Rarity.VeryCommon);
-        public static readonly Material CompactComposites = new Material("", "Manufactured", "Compact Composites", Rarity.VeryCommon);
+        public static readonly Material ChemicalStorageUnits = new Material("chemicalstorageunits", "Manufactured", "Chemical Storage Units", Rarity.VeryCommon);
+        public static readonly Material CompactComposites = new Material("compactcomposites", "Manufactured", "Compact Composites", Rarity.VeryCommon);
         public static readonly Material CrystalShards = new Material("crystalshards", "Manufactured", "Crystal Shards", Rarity.VeryCommon);
         public static readonly Material GridResistors = new Material("gridresistors", "Manufactured", "Grid Resistors", Rarity.VeryCommon);
         public static readonly Material HeatConductionWiring = new Material("heatconductionwiring", "Manufactured", "Heat Conduction Wiring", Rarity.VeryCommon);
@@ -128,7 +128,7 @@ namespace EddiDataDefinitions
 
         public static readonly Material ChemicalProcessors = new Material("chemicalprocessors", "Manufactured", "Chemical Processors", Rarity.Common);
         public static readonly Material ConductiveComponents = new Material("conductivecomponents", "Manufactured", "Conductive Components", Rarity.Common);
-        public static readonly Material FilamentComposites = new Material("", "Manufactured", "Filament Composites", Rarity.Common);
+        public static readonly Material FilamentComposites = new Material("filamentcomposites", "Manufactured", "Filament Composites", Rarity.Common);
         public static readonly Material FlawedFocusCrystals = new Material("uncutfocuscrystals", "Manufactured", "Flawed Focus Crystals", Rarity.Common);
         public static readonly Material GalvanisingAlloys = new Material("galvanisingalloys", "Manufactured", "Galvanising Alloys", Rarity.Common);
         public static readonly Material HeatDispersionPlate = new Material("heatdispersionplate", "Manufactured", "Heat Dispersion Plate", Rarity.Common);
@@ -169,13 +169,22 @@ namespace EddiDataDefinitions
         public static readonly Material PharmaceuticalIsolators = new Material("pharmaceuticalisolators", "Manufactured", "Pharmaceutical Isolators", Rarity.VeryRare);
         public static readonly Material ProtoHeatRadiators = new Material("protoheatradiators", "Manufactured", "Proto Heat Radiators", Rarity.VeryRare);
         public static readonly Material ProtoRadiolicAlloys = new Material("protoradiolicalloys", "Manufactured", "Proto Radiolic Alloys", Rarity.VeryRare);
-        public static readonly Material UnknownFragment = new Material("unknownenergysource", "Manufactured", "Unknown Fragment", Rarity.VeryRare);
 
         public static readonly Material AncientBiologicalData = new Material("ancientbiologicaldata", "Data", "Ancient Biological Data", Rarity.Common);
         public static readonly Material AncientCulturalData = new Material("ancientculturaldata", "Data", "Ancient Cultural Data", Rarity.Common);
         public static readonly Material AncientHistoricalData = new Material("ancienthistoricaldata", "Data", "Ancient Historical Data", Rarity.Common);
         public static readonly Material AncientLanguageData = new Material("ancientlanguagedata", "Data", "Ancient Language Data", Rarity.Common);
         public static readonly Material AncientTechnologicalData = new Material("ancienttechnologicaldata", "Data", "Ancient Technological Data", Rarity.Common);
+
+        public static readonly Material UnknownCarapace = new Material("unknowncarapace", "Manufactured", "Thargoid Carapace", Rarity.Common);
+        public static readonly Material UnknownEnergyCell = new Material("unknownenergycell", "Manufactured", "Thargoid Energy Cell", Rarity.Standard);
+        public static readonly Material UnknownTechnologyComponents = new Material("unknowntechnologycomponents", "Manufactured", "Thargoid Technology Components", Rarity.Rare);
+        public static readonly Material UnknownEnergySource = new Material("unknownenergysource", "Manufactured", "Sensor Fragment", Rarity.VeryRare);
+        public static readonly Material UnknownOrganicCircuitry = new Material("unknownorganiccircuitry", "Manufactured", "Thargoid Organic Circuitry", Rarity.VeryRare);
+
+        public static readonly Material Tg_StructuralData = new Material("tg_structuraldata", "Data", "Thargoid Structural Data", Rarity.Common);
+        public static readonly Material Tg_CompositionData = new Material("tg_compositiondata", "Data", "Thargoid Material Composition Data", Rarity.Standard);
+        public static readonly Material Tg_ResidueData = new Material("tg_residuedata", "Data", "Thargoid Residue Data", Rarity.Rare);
 
         public static Material FromName(string from)
         {
@@ -189,7 +198,7 @@ namespace EddiDataDefinitions
             if (result == null)
             {
                 Logging.Report("Unknown material name " + from);
-                result = new Material(tidiedFrom, "Unknown", from, Rarity.Unknown);
+                result = new Material(null, "Unknown", from, Rarity.Unknown);
             }
             return result;
         }
@@ -219,6 +228,24 @@ namespace EddiDataDefinitions
                 Logging.Report("Unknown material symbol " + from);
             }
             return result;
+        }
+
+        public static bool DeprecatedMaterials(string name)
+        {
+            // These material names have been replaced / are no longer in use. Listed for reference so that they won't be retained by the material monitor.
+            if (name == null)
+            {
+                return false;
+            }
+            List<string> deprecatedMaterialsList = new List<string>
+            {
+                "Thargoid Residue Data Analysis",
+                "Unknown Ship Signature",
+                "Unknown Wake Data",
+                "Unknown Fragment",
+            };
+
+            return deprecatedMaterialsList.Contains(name.Trim());
         }
     }
 }

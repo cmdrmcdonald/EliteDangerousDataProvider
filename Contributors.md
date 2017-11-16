@@ -1,8 +1,11 @@
-#Contributors
+﻿#Contributors
 
 
-  * [Cmdr McDonald](https://github.com/cmdrmcdonald)
+  * [CMDR McDonald](https://github.com/cmdrmcdonald)
   * [Handfeger](https://github.com/Handfeger)
-  * Cmdr Malandark
+  * CMDR Malandark
   * [Baroness Galaxy](https://github.com/Javelias)
   * [Michael Werle](https://github.com/mwerle)
+  * [CMDR Hoodathunk](https://github.com/Hoodathunk)
+  * [CMDR T'kael](https://github.com/Tkael)
+  * VerticalBlank (CMDR Ky Vatta)
