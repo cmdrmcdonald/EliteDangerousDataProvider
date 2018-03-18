@@ -1,10 +1,8 @@
 ﻿using EddiDataDefinitions;
 using Newtonsoft.Json;
 using System;
-using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
-using System.Linq;
 using Utilities;
 
 namespace EddiMaterialMonitor
@@ -36,33 +34,23 @@ namespace EddiMaterialMonitor
             MaterialMonitorConfiguration configuration = new MaterialMonitorConfiguration();
             if (File.Exists(filename))
             {
-                string data = Files.Read(filename);
-                if (data != null)
+                try
                 {
-                    try
+                    string data = Files.Read(filename);
+                    if (data != null)
                     {
                         configuration = JsonConvert.DeserializeObject<MaterialMonitorConfiguration>(data);
                     }
-                    catch (Exception ex)
-                    {
-                        Logging.Debug("Failed to read materials configuration", ex);
-                    }
+                }
+                catch (Exception ex)
+                {
+                    Logging.Debug("Failed to read materials configuration", ex);
                 }
             }
             if (configuration == null)
             {
                 configuration = new MaterialMonitorConfiguration();
             }
-
-            //// We fully populate the list with all known materials
-            //foreach (Material material in Material.MATERIALS)
-            //{
-            //    Limits cur;
-            //    if (!configuration.limits.TryGetValue(material.EDName, out cur))
-            //    {
-            //        configuration.limits[material.EDName] = new Limits(null, null, null);
-            //    }
-            //}
 
             configuration.dataPath = filename;
             return configuration;

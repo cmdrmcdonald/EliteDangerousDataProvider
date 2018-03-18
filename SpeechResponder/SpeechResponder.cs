@@ -11,7 +11,7 @@ using System.Text.RegularExpressions;
 using System.IO;
 using EddiDataDefinitions;
 using EddiShipMonitor;
-using Cottle;
+using EddiStatusMonitor;
 
 namespace EddiSpeechResponder
 {
@@ -29,6 +29,8 @@ namespace EddiSpeechResponder
 
         private bool subtitlesOnly;
 
+        private int beaconScanCount = 0;
+
         public string ResponderName()
         {
             return "Speech responder";
@@ -41,7 +43,7 @@ namespace EddiSpeechResponder
 
         public string ResponderDescription()
         {
-            return "Respond to events with pre-scripted responses using the information available.  Not all events have scripted responses by default; those that do not have the 'Test' button disabled.  The default personality can be copied, which allows existing scripts to be modified or disabled, and new scripts to be written, to suit your preferences.";
+            return "Respond to events with scripted speech based on the information in the event. Not all events have scripted responses. If a script response is empty, its 'Test' and 'View' buttons are disabled.";
         }
 
         public SpeechResponder()
@@ -116,7 +118,7 @@ namespace EddiSpeechResponder
             scriptResolver = new ScriptResolver(personality.Scripts);
             subtitles = configuration.Subtitles;
             subtitlesOnly = configuration.SubtitlesOnly;
-            Logging.Info("Reloaded " + ResponderName() + " " + ResponderVersion());
+            Logging.Debug("Reloaded " + ResponderName() + " " + ResponderVersion());
         }
 
         public void Handle(Event theEvent)
@@ -132,6 +134,32 @@ namespace EddiSpeechResponder
                 {
                     sayOutLoud = !(bool)tmp;
                 }
+            }
+
+            if (theEvent is NavBeaconScanEvent)
+            {
+                beaconScanCount = ((NavBeaconScanEvent)theEvent).numbodies;
+                Logging.Debug($"beaconScanCount = {beaconScanCount}");
+            }
+            else if (theEvent is StarScannedEvent || theEvent is BodyScannedEvent || theEvent is BeltScannedEvent)
+            {
+                if (beaconScanCount > 0)
+                {
+                    beaconScanCount--;
+                    Logging.Debug("beaconScanCount = " + beaconScanCount.ToString());
+                    return;
+                }
+                if (theEvent is BeltScannedEvent)
+                {
+                    // We ignore belt clusters
+                    return;
+                }
+            }
+
+            // Disable speech from the community goal event for the time being.
+            if (theEvent is CommunityGoalEvent)
+            {
+                return;
             }
 
             Say(scriptResolver, ((ShipMonitor)EDDI.Instance.ObtainMonitor("Ship monitor")).GetCurrentShip(), theEvent.type, theEvent, null, null, null, sayOutLoud);
@@ -198,6 +226,11 @@ namespace EddiSpeechResponder
             if (EDDI.Instance.CurrentStation != null)
             {
                 dict["station"] = new ReflectionValue(EDDI.Instance.CurrentStation);
+            }
+
+            if (StatusMonitor.currentStatus != null)
+            {
+                dict["status"] = new ReflectionValue(StatusMonitor.currentStatus);
             }
 
             if (theEvent != null)

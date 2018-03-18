@@ -1,8 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Utilities
 {
@@ -26,7 +22,7 @@ namespace Utilities
             {
                 return -1;
             }
-            System.Text.RegularExpressions.Regex versionRegex = new System.Text.RegularExpressions.Regex(@"^([\d]+)\.([\d]+)\.([\d]+)-?([a-b])?([\d]+)?");
+            System.Text.RegularExpressions.Regex versionRegex = new System.Text.RegularExpressions.Regex(@"^([\d]+)\.([\d]+)\.([\d]+)-?([a-z]+)?([\d]+)?");
             System.Text.RegularExpressions.MatchCollection m1 = versionRegex.Matches(Version1);
             System.Text.RegularExpressions.MatchCollection m2 = versionRegex.Matches(Version2);
 

@@ -7,6 +7,8 @@ namespace EddiDataDefinitions
     {
         private static Dictionary<long, Module> ModulesByEliteID = new Dictionary<long, Module>
         {
+                // Module(long EDID, string EDName, long EDDBID, string Name, int Class, string Grade, long Value, int ShipID)
+                // Check https://eddb.io/archive/v5/modules.json for any undefined EDDBID's
                 {128049250, new Module(128049250, "SideWinder_Armour_Grade1", 738, "Lightweight Alloy", 1, "I", 0, 128049249) },
                 {128049251, new Module(128049251, "SideWinder_Armour_Grade2", 739, "Reinforced Alloy", 1, "I", 25600, 128049249) },
                 {128049252, new Module(128049252, "SideWinder_Armour_Grade3", 740, "Military Grade Composite", 1, "I", 80320, 128049249) },
@@ -496,11 +498,11 @@ namespace EddiDataDefinitions
                 {128066549, new Module(128066549, "Int_DroneControl_ResourceSiphon_Size7_Class3", 1224, "Hatch Breaker Limpet Controller", 7, "C", 1749600) },
                 {128066550, new Module(128066550, "Int_DroneControl_ResourceSiphon_Size7_Class4", 1225, "Hatch Breaker Limpet Controller", 7, "B", 3499200) },
                 {128066551, new Module(128066551, "Int_DroneControl_ResourceSiphon_Size7_Class5", 1226, "Hatch Breaker Limpet Controller", 7, "A", 6998400) },
-                {128662520, new Module(128662520, "Hpt_CargoScanner_Size0_Class1", 1227, "Cargo Scanner", 0, "E", 13540) },
-                {128662521, new Module(128662521, "Hpt_CargoScanner_Size0_Class2", 1228, "Cargo Scanner", 0, "D", 40630) },
-                {128662522, new Module(128662522, "Hpt_CargoScanner_Size0_Class3", 1229, "Cargo Scanner", 0, "C", 121900) },
-                {128662523, new Module(128662523, "Hpt_CargoScanner_Size0_Class4", 1230, "Cargo Scanner", 0, "B", 365700) },
-                {128662524, new Module(128662524, "Hpt_CargoScanner_Size0_Class5", 1231, "Cargo Scanner", 0, "A", 1097100) },
+                {128662520, new Module(128662520, "Hpt_CargoScanner_Size0_Class1", 1227, "Manifest Scanner", 0, "E", 13540) },
+                {128662521, new Module(128662521, "Hpt_CargoScanner_Size0_Class2", 1228, "Manifest Scanner", 0, "D", 40630) },
+                {128662522, new Module(128662522, "Hpt_CargoScanner_Size0_Class3", 1229, "Manifest Scanner", 0, "C", 121900) },
+                {128662523, new Module(128662523, "Hpt_CargoScanner_Size0_Class4", 1230, "Manifest Scanner", 0, "B", 365700) },
+                {128662524, new Module(128662524, "Hpt_CargoScanner_Size0_Class5", 1231, "Manifest Scanner", 0, "A", 1097100) },
                 {128662525, new Module(128662525, "Hpt_CloudScanner_Size0_Class1", 1232, "Frame Shift Wake Scanner", 0, "E", 13540) },
                 {128662526, new Module(128662526, "Hpt_CloudScanner_Size0_Class2", 1233, "Frame Shift Wake Scanner", 0, "D", 40630) },
                 {128662527, new Module(128662527, "Hpt_CloudScanner_Size0_Class3", 1234, "Frame Shift Wake Scanner", 0, "C", 121900) },
@@ -853,11 +855,64 @@ namespace EddiDataDefinitions
                 {128737277, new Module(128737277, "Int_ModuleReinforcement_Size4_Class2", 1584, "Module Reinforcement Package", 4, "D", 195000) },
                 {128737278, new Module(128737278, "Int_ModuleReinforcement_Size5_Class1", 1585, "Module Reinforcement Package", 5, "E", 150000) },
                 {128737279, new Module(128737279, "Int_ModuleReinforcement_Size5_Class2", 1586, "Module Reinforcement Package", 5, "D", 450000) },
+                {128740819, new Module(128740819, "Hpt_MiningLaser_Turret_Small", 1587, "Mining Laser", 1, "D", 9400, Module.ModuleMount.Turreted) },
+                {128740820, new Module(128740820, "Hpt_MiningLaser_Turret_Medium", 1588, "Mining Laser", 2, "D", 22580, Module.ModuleMount.Turreted) },
                 {128049292, new Module(128049292, "Dolphin_Armour_Grade1", 1589, "Lightweight Alloy", 1, "I", 0, 128049291) },
                 {128049293, new Module(128049293, "Dolphin_Armour_Grade2", 1590, "Reinforced Alloy", 1, "I", 534390, 128049291) },
                 {128049294, new Module(128049294, "Dolphin_Armour_Grade3", 1591, "Military Grade Composite", 1, "I", 1115330, 128049291) },
                 {128049295, new Module(128049295, "Dolphin_Armour_Mirrored", 1592, "Mirrored Surface Composite", 1, "I", 2808390, 128049291) },
                 {128049296, new Module(128049296, "Dolphin_Armour_Reactive", 1593, "Reactive Surface Composite", 1, "I", -3152080, 128049291) },
+                {128777327, new Module(128777327, "Int_DroneControl_Repair_Size1_Class1", 1594, "Repair Limpet Controller", 1, "E", 600) },  
+                {128777328, new Module(128777328, "Int_DroneControl_Repair_Size1_Class2", 1595, "Repair Limpet Controller", 1, "D", 1200) }, 
+                {128777329, new Module(128777329, "Int_DroneControl_Repair_Size1_Class3", 1596, "Repair Limpet Controller", 1, "C", 2400) }, 
+                {128777330, new Module(128777330, "Int_DroneControl_Repair_Size1_Class4", 1597, "Repair Limpet Controller", 1, "B", 4800) },  
+                {128777331, new Module(128777331, "Int_DroneControl_Repair_Size1_Class5", 1598, "Repair Limpet Controller", 1, "A", 9600) },  
+                {128777332, new Module(128777332, "Int_DroneControl_Repair_Size3_Class1", 1599, "Repair Limpet Controller", 3, "E", 5400) }, 
+                {128777333, new Module(128777333, "Int_DroneControl_Repair_Size3_Class2", 1600, "Repair Limpet Controller", 3, "D", 10800) },  
+                {128777334, new Module(128777334, "Int_DroneControl_Repair_Size3_Class3", 1601, "Repair Limpet Controller", 3, "C", 21600) }, 
+                {128777335, new Module(128777335, "Int_DroneControl_Repair_Size3_Class4", 1602, "Repair Limpet Controller", 3, "B", 43200) },  
+                {128777336, new Module(128777336, "Int_DroneControl_Repair_Size3_Class5", 1603, "Repair Limpet Controller", 3, "A", 86400) },  
+                {128777337, new Module(128777337, "Int_DroneControl_Repair_Size5_Class1", 1604, "Repair Limpet Controller", 5, "E", 48600) }, 
+                {128777338, new Module(128777338, "Int_DroneControl_Repair_Size5_Class2", 1605, "Repair Limpet Controller", 5, "D", 97200) },  
+                {128777339, new Module(128777339, "Int_DroneControl_Repair_Size5_Class3", 1606, "Repair Limpet Controller", 5, "C", 194400) },  
+                {128777340, new Module(128777340, "Int_DroneControl_Repair_Size5_Class4", 1607, "Repair Limpet Controller", 5, "B", 388800) }, 
+                {128777341, new Module(128777341, "Int_DroneControl_Repair_Size5_Class5", 1608, "Repair Limpet Controller", 5, "A", 777600) },
+                {128777342, new Module(128777342, "Int_DroneControl_Repair_Size7_Class1", 1609, "Repair Limpet Controller", 7, "E", 437400) },
+                {128777343, new Module(128777343, "Int_DroneControl_Repair_Size7_Class2", 1610, "Repair Limpet Controller", 7, "D", 874800) },
+                {128777344, new Module(128777344, "Int_DroneControl_Repair_Size7_Class3", 1611, "Repair Limpet Controller", 7, "C", 1749600) },
+                {128777345, new Module(128777345, "Int_DroneControl_Repair_Size7_Class4", 1612, "Repair Limpet Controller", 7, "B", 3499200) },
+                {128777346, new Module(128777346, "Int_DroneControl_Repair_Size7_Class5", 1613, "Repair Limpet Controller", 7, "A", 6998400) },
+                {128785621, new Module(128785621, "Type9_Military_Armour_Grade1", 1627, "Lightweight Alloy", 1, "I", 0, 128785619) },
+                {128785622, new Module(128785622, "Type9_Military_Armour_Grade2", 1628, "Reinforced Alloy", 1, "I", 48654583, 128785619) },
+                {128785623, new Module(128785623, "Type9_Military_Armour_Grade3", 1629, "Military Grade Composite", 1, "I", 109472813, 128785619) },
+                {128785624, new Module(128785624, "Type9_Military_Armour_Mirrored", 1630, "Mirrored Surface Composite", 1, "I", 258720748, 128785619) },
+                {128785625, new Module(128785625, "Type9_Military_Armour_Reactive", 1631, "Reactive Surface Composite", 1, "I", 283830162, 128785619) },
+                {128788699, new Module(128788699, "Hpt_ATDumbfireMissile_Fixed_Medium", 1614, "AX Missile Rack", 2, "B", 540900, Module.ModuleMount.Fixed) },
+                {128788704, new Module(128788704, "Hpt_ATDumbfireMissile_Turret_Medium", 1615, "AX Missile Rack", 2, "B", 2022700, Module.ModuleMount.Turreted) },
+                {128793115, new Module(128793115, "Hpt_XenoScanner_Basic_Tiny", 1616, "Xeno Scanner", 0, "E", 365700) },
+                {128793116, new Module(128793116, "Int_DroneControl_UnkVesselResearch", 1617, "Research Limpet Controller", 1, "E", 600) },
+                {128788701, new Module(128788701, "Hpt_ATMultiCannon_Fixed_Medium", 1618, "AX Multi-Cannon", 2, "E", 379000, Module.ModuleMount.Fixed) },
+                {128793059, new Module(128793059, "Hpt_ATMultiCannon_Turret_Medium", 1619, "AX Multi-Cannon", 2, "F", 1826500, Module.ModuleMount.Turreted) },
+                {128785626, new Module(128785626, "Hpt_FlakMortar_Fixed_Medium", 1620, "Remote Release Flak Launcher", 2, "B", 255255, Module.ModuleMount.Fixed) },
+                {128793058, new Module(128793058, "Hpt_FlakMortar_Turret_Medium", 1621, "Remote Release Flak Launcher", 2, "B", 1227720, Module.ModuleMount.Turreted) },
+                {128771884, new Module(128771884, "Hpt_AntiUnknownShutdown_Tiny", 1622, "Shutdown Field Neutraliser", 0, "F", 61425) },
+                {128788700, new Module(128788700, "Hpt_ATDumbfireMissile_Fixed_Large", 1623, "AX Missile Rack", 3, "A", 1288780, Module.ModuleMount.Fixed) },
+                {128788705, new Module(128788705, "Hpt_ATDumbfireMissile_Turret_Large", 1624, "AX Missile Rack", 3, "A", 3866338, Module.ModuleMount.Turreted) },
+                {128788702, new Module(128788702, "Hpt_ATMultiCannon_Fixed_Large", 1625, "AX Multi-Cannon", 3, "C", 1126044, Module.ModuleMount.Fixed) },
+                {128793060, new Module(128793060, "Hpt_ATMultiCannon_Turret_Large", 1626, "AX Multi-Cannon", 3, "E", 3642224, Module.ModuleMount.Turreted) },
+                {128793941, new Module(128793941, "Int_DroneControl_Decontamination_Size1_Class1", 1632, "Decontamination Limpet Controller", 1, "E", 3600) },
+                {128793942, new Module(128793942, "Int_DroneControl_Decontamination_Size3_Class1", 1633, "Decontamination Limpet Controller", 3, "E", 16201) },
+                {128793943, new Module(128793943, "Int_DroneControl_Decontamination_Size5_Class1", 1634, "Decontamination Limpet Controller", 5, "E", 145801) },
+                {128793944, new Module(128793944, "Int_DroneControl_Decontamination_Size7_Class1", 1635, "Decontamination Limpet Controller", 7, "E", 1312201) },
+                {128837858, new Module(128837858, "Int_DroneControl_Recon_Size1_Class1", 1632, "Recon  Limpet Controller", 1, "E", 2600) },
+                {128841592, new Module(128841592, "Int_DroneControl_Recon_Size3_Class1", 1633, "Recon Limpet Controller", 3, "E", 8200) },
+                {128841593, new Module(128841593, "Int_DroneControl_Recon_Size5_Class1", 1634, "Recon Limpet Controller", 5, "E", 75800) },
+                {128841594, new Module(128841594, "Int_DroneControl_Recon_Size7_Class1", 1635, "Recon Limpet Controller", 7, "E", 612200) },
+                {128816576, new Module(128816576, "TypeX_Armour_Grade1", 1627, "Lightweight Alloy", 1, "I", 0, 128816574) },
+                {128816577, new Module(128816577, "TypeX_Armour_Grade2", 1628, "Reinforced Alloy", 1, "I", 7752900, 128816574) },
+                {128816578, new Module(128816578, "TypeX_Armour_Grade3", 1629, "Military Grade Composite", 1, "I", 17444026, 128816574) },
+                {128816579, new Module(128816579, "TypeX_Armour_Mirrored", 1630, "Mirrored Surface Composite", 1, "I", 41226050, 128816574) },
+                {128816580, new Module(128816580, "TypeX_Armour_Reactive", 1631, "Reactive Surface Composite", 1, "I", 45683967, 128816574) },
 
                 // Various free modules that show up in SRVs, fighters and training; not used anywhere but note them here so that they do not throw errors when encountered
                 {128666643, new Module(128666643, "Int_CargoRack_Size2_Class1_free", -1, "Cargo Rack", 2, "E", 0) },
@@ -873,9 +928,10 @@ namespace EddiDataDefinitions
                 {128666638, new Module(128666638, "Int_LifeSupport_Size1_Class1_free", -1, "Life Support", 1, "E", 0) },
 
                 // Items for which we are awaiting FD IDs
-                {999999901, new Module(999999901, "Hpt_MiningLaser_Turret_Small", 1587, "Mining Laser", 1, "D", 9400, Module.ModuleMount.Turreted) },
-                {999999902, new Module(999999902, "Hpt_MiningLaser_Turret_Medium", 1588, "Mining Laser", 2, "D", 22580, Module.ModuleMount.Turreted) },
+                {999999901, new Module(999999901, "VoicePack_Verity", -1, "Verity", 1, "I", 0) },
+                {999999902, new Module(999999902, "VoicePack_Victor", -1, "Victor", 1, "I", 0) },
                 {999999903, new Module(999999903, "Hpt_MiningLaser_Fixed_Small_Advanced", -1, "Mining Lance", 1, "D", 6800, Module.ModuleMount.Fixed) },
+                {999999904, new Module(999999904, "VoicePack_Celeste", -1, "Celeste", 1, "I", 0) },
                 // The FDL has its own cargo bay door.  The FDL is like that
                 {999999907, new Module(999999907, "ModularCargoBayDoorFDL", -1, "Cargo Hatch", 1, "H", 0, -1) },
                 {999999908, new Module(999999908, "ModularCargoBayDoor", -1, "Cargo Hatch", 1, "H", 0, -1) },
@@ -910,6 +966,9 @@ namespace EddiDataDefinitions
                 {999999937, new Module(999999937, "CobraMkIV_Cockpit", -1, "Cockpit Canopy", 1, "I", 0, 128672262) },
                 {999999938, new Module(999999938, "BelugaLiner_Cockpit", -1, "Cockpit Canopy", 1, "I", 0, 128049345) },
                 {999999939, new Module(999999939, "Dolphin_Cockpit", -1, "Cockpit Canopy", 1, "I", 0, 128049291) },
+                {999999940, new Module(999999940, "hpt_shipdatalinkscanner", -1, "Data Link Scanner", 1, "I", 0, -1) },
+                {999999941, new Module(999999941, "string_lights_coloured", -1, "Coloured string lights", 1, "I", 0, -1) },
+                {999999942, new Module(999999942, "Type9_Military_Cockpit", -1, "Cockpit Canopy", 1, "I", 0, 128785619) },
         };
 
         private static Dictionary<string, Module> ModulesByEDName = ModulesByEliteID.ToDictionary(kp => kp.Value.EDName.ToLowerInvariant().Replace(" ", "").Replace(".", "").Replace("-", ""), kp => kp.Value);
@@ -971,6 +1030,7 @@ namespace EddiDataDefinitions
             Module Template;
             if (ModulesByEliteID.TryGetValue(id, out Template))
             {
+                Module.EDID = Template.EDID;
                 Module.EDName = Template.EDName;
                 Module.EDDBID = Template.EDDBID;
                 Module.name = Template.name;

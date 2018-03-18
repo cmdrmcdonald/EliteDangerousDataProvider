@@ -1,12 +1,7 @@
 ﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
 using EddiCompanionAppService;
 using EddiDataDefinitions;
-using EddiVoiceAttackResponder;
-using Eddi;
-using System;
-using Newtonsoft.Json;
 using System.Collections.Generic;
-using System.Linq;
 using Newtonsoft.Json.Linq;
 using EddiShipMonitor;
 
@@ -5259,8 +5254,8 @@ namespace Tests
       },
       ""Slot07_Size3"": {
         ""module"": {
-          ""id"": 128668542,
-          ""name"": ""Int_HullReinforcement_Size3_Class2"",
+          ""id"": 128064340,
+          ""name"": ""Int_CargoRack_Size1_Class3"",
           ""value"": 84000,
           ""unloaned"": 0,
           ""free"": false,
@@ -5275,8 +5270,8 @@ namespace Tests
       },
       ""Slot08_Size3"": {
         ""module"": {
-          ""id"": 128668542,
-          ""name"": ""Int_HullReinforcement_Size3_Class2"",
+          ""id"": 128064338,
+          ""name"": ""Int_CargoRack_Size1_Class1"",
           ""value"": 84000,
           ""unloaned"": 0,
           ""free"": false,

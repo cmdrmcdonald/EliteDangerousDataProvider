@@ -3,12 +3,8 @@ using EddiDataDefinitions;
 using EddiEvents;
 using EddiShipMonitor;
 using EddiStarMapService;
-using Newtonsoft.Json;
-using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using System.Threading;
 using System.Windows.Controls;
 using Utilities;
 
@@ -18,6 +14,7 @@ namespace EddiEdsmResponder
     {
         private StarMapService starMapService;
         private string system;
+        private Thread updateThread;
 
         public string ResponderName()
         {
@@ -42,11 +39,14 @@ namespace EddiEdsmResponder
         public bool Start()
         {
             Reload();
+
             return starMapService != null;
         }
 
         public void Stop()
         {
+            updateThread?.Abort();
+            updateThread = null;
             starMapService = null;
         }
 
@@ -70,6 +70,15 @@ namespace EddiEdsmResponder
                 {
                     starMapService = new StarMapService(starMapCredentials.apiKey, commanderName);
                 }
+            }
+
+            if (starMapService != null && updateThread == null)
+            {
+                // Spin off a thread to download & sync EDSM flight logs & system comments in the background
+                updateThread = new Thread(() => starMapService.Sync(starMapCredentials.lastSync));
+                updateThread.IsBackground = true;
+                updateThread.Name = "EDSM updater";
+                updateThread.Start();
             }
         }
 
@@ -118,7 +127,7 @@ namespace EddiEdsmResponder
                     Dictionary<string, int> data = new Dictionary<string, int>();
                     foreach (MaterialAmount ma in materialInventoryEvent.inventory)
                     {
-                        Material material = Material.FromName(ma.material);
+                        Material material = Material.FromEDName(ma.edname);
                         if (material.category == "Element" || material.category == "Manufactured")
                         {
                             materials.Add(material.EDName, ma.amount);
@@ -161,7 +170,6 @@ namespace EddiEdsmResponder
                         starMapService.sendShipSwapped((int)shipDeliveredEvent.shipid);
                     }
                 }
-
                 else if (theEvent is CommanderProgressEvent)
                 {
                     CommanderProgressEvent progressEvent = (CommanderProgressEvent)theEvent;

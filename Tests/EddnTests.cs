@@ -1,6 +1,5 @@
 ﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System;
-using Eddi;
 using System.IO;
 using System.IO.Compression;
 using NetMQ;
@@ -11,13 +10,14 @@ namespace Tests
     [TestClass]
     public class EddnTests
     {
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2202:Do not dispose objects multiple times")] // this usage is perfectly correct
         [TestMethod]
         public void TestListen()
         {
             using (var subscriber = new SubscriberSocket())
             {
                 int i = 0;
-                subscriber.Connect("tcp://eddn-relay.elite-markets.net:9500");
+                subscriber.Connect("tcp://eddn.edcd.io:9500");
                 subscriber.Subscribe("");
                 while (i < 10)
                 {

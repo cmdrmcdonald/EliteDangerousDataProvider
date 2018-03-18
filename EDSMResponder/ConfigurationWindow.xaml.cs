@@ -2,22 +2,11 @@
 using EddiDataDefinitions;
 using EddiDataProviderService;
 using EddiStarMapService;
-using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Navigation;
-using System.Windows.Shapes;
-using Utilities;
 
 namespace EddiEdsmResponder
 {
@@ -52,7 +41,7 @@ namespace EddiEdsmResponder
 
         private void updateEdsmConfiguration()
         {
-            StarMapConfiguration edsmConfiguration = new StarMapConfiguration();
+            StarMapConfiguration edsmConfiguration = StarMapConfiguration.FromFile();
             if (!string.IsNullOrWhiteSpace(edsmApiKeyTextBox.Text))
             {
                 edsmConfiguration.apiKey = edsmApiKeyTextBox.Text.Trim();
@@ -106,6 +95,9 @@ namespace EddiEdsmResponder
             var progress = new Progress<string>(s => edsmFetchLogsButton.Content = s);
             await Task.Factory.StartNew(() => obtainEdsmLogs(starMapConfiguration, commanderName, progress),
                                             TaskCreationOptions.LongRunning);
+
+            starMapConfiguration.lastSync = DateTime.UtcNow;
+            starMapConfiguration.ToFile();
         }
 
         public static void obtainEdsmLogs(StarMapConfiguration starMapConfiguration, string commanderName, IProgress<string> progress)
@@ -117,9 +109,12 @@ namespace EddiEdsmResponder
                 Dictionary<string, string> comments = starMapService.getStarMapComments();
                 int total = systems.Count;
                 int i = 0;
+                List<StarSystem> syncSystems = new List<StarSystem>();
+
                 foreach (string system in systems.Keys)
                 {
-                    progress.Report("Obtaining log " + i++ + "/" + total);
+                    ++i;
+                    progress.Report($"Obtaining log {i}/{total}");
                     StarSystem CurrentStarSystem = StarSystemSqLiteRepository.Instance.GetOrCreateStarSystem(system, false);
                     CurrentStarSystem.visits = systems[system].visits;
                     CurrentStarSystem.lastvisit = systems[system].lastVisit;
@@ -127,8 +122,19 @@ namespace EddiEdsmResponder
                     {
                         CurrentStarSystem.comment = comments[system];
                     }
-                    StarSystemSqLiteRepository.Instance.SaveStarSystem(CurrentStarSystem);
+                    syncSystems.Add(CurrentStarSystem);
+
+                    if (syncSystems.Count == StarMapService.syncBatchSize)
+                    {
+                        StarMapService.saveStarSystems(syncSystems);
+                        syncSystems.Clear();
+                    }
                 }
+                if (syncSystems.Count > 0)
+                {
+                    StarMapService.saveStarSystems(syncSystems);
+                }
+
                 progress.Report("Obtained log");
             }
             catch (EDSMException edsme)

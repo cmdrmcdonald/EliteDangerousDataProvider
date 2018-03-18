@@ -3,9 +3,11 @@ using EddiDataDefinitions;
 using EddiSpeechService;
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
+using System.Diagnostics;
 using System.Globalization;
 using System.IO;
-using System.Net;
+using System.IO.Compression;
 using System.Speech.Synthesis;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -13,6 +15,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
+using System.Windows.Forms;
 using System.Windows.Input;
 using Utilities;
 
@@ -24,12 +27,114 @@ namespace Eddi
     public partial class MainWindow : Window
     {
         private Profile profile;
-
         private bool fromVA;
 
         public MainWindow() : this(false) { }
 
+        private void SaveWindowState()
+        {
+            Rect savePosition;
+
+            switch (WindowState)
+            {
+                case WindowState.Maximized:
+                    savePosition = new Rect(RestoreBounds.Left, RestoreBounds.Top, RestoreBounds.Width, RestoreBounds.Height);
+                    Properties.Settings.Default.Maximized = true;
+                    Properties.Settings.Default.Minimized = false;
+                    break;
+                case WindowState.Minimized:
+                    savePosition = new Rect(RestoreBounds.Left, RestoreBounds.Top, RestoreBounds.Width, RestoreBounds.Height);
+                    Properties.Settings.Default.Maximized = false;
+
+                    // If opened from VoiceAttack, don't allow minimized state
+                    Properties.Settings.Default.Minimized = fromVA ? false: true;
+
+                    break;
+                default:
+                    savePosition = new Rect(Left, Top, Width, Height);
+                    Properties.Settings.Default.Maximized = false;
+                    Properties.Settings.Default.Minimized = false;
+                    break;
+            }
+
+            Properties.Settings.Default.WindowPosition = savePosition;
+
+            // Remember which tab we have selected in EDDI
+            Properties.Settings.Default.SelectedTab = this.tabControl.SelectedIndex;
+
+            Properties.Settings.Default.Save();
+        }
+
+        private void RestoreWindowState()
+        {
+            const int designedHeight = 600;
+            const int designedWidth = 800;
+
+            Rect windowPosition = Properties.Settings.Default.WindowPosition;
+            Visibility = Visibility.Collapsed;
+
+            if (windowPosition != Rect.Empty && isWindowValid(windowPosition))
+            {
+                // Hook Loaded event to handle minimized/maximized state restore
+                Loaded += windowLoaded;
+                WindowStartupLocation = WindowStartupLocation.Manual;
+
+                // Restore persisted window size & position
+                Left = windowPosition.Left;
+                Top = windowPosition.Top;
+                Width = windowPosition.Width;
+                Height = windowPosition.Height;
+            }
+            else
+            {
+                // Revert to default values if the prior size and position are no longer valid
+                Left = centerWindow(Screen.PrimaryScreen.Bounds.Width, designedWidth);
+                Top = centerWindow(Screen.PrimaryScreen.Bounds.Height, designedHeight);
+                Width = Math.Min(Screen.PrimaryScreen.Bounds.Width, designedWidth);
+                Height = Math.Min(Screen.PrimaryScreen.Bounds.Height, designedHeight);
+            }
+
+            tabControl.SelectedIndex = Eddi.Properties.Settings.Default.SelectedTab;
+
+            // Check detected monitors to see if the saved window size and location is valid
+            bool isWindowValid(Rect rect)
+            {
+                // Check for minimum window size
+                if ((int)rect.Width < designedWidth || (int)rect.Height < designedHeight)
+                {
+                    return false;
+                }
+
+                // Check whether the rectangle is completely visible on-screen
+                bool testUpperLeft = false;
+                bool testLowerRight = false;
+                foreach (Screen screen in Screen.AllScreens)
+                {
+                    if (rect.X >= screen.Bounds.X && rect.Y >= screen.Bounds.Y) // The upper and left bounds fall on a valid screen
+                    {
+                        testUpperLeft = true;
+                    }
+                    if (screen.Bounds.Width >= rect.X + rect.Width && screen.Bounds.Height >= rect.Y + rect.Height) // The lower and right bounds fall on a valid screen 
+                    {
+                        testLowerRight = true;
+                    }
+                }
+                if (testUpperLeft && testLowerRight)
+                {
+                    return true;
+                }
+                return false;
+            }
+
+            int centerWindow(int measure, int defaultValue)
+            {
+                return (measure - Math.Min(measure, defaultValue)) / 2;
+            }
+        }
+
         private bool runBetaCheck = false;
+
+        private static readonly object logLock = new object();
 
         public MainWindow(bool fromVA = false)
         {
@@ -44,9 +149,11 @@ namespace Eddi
             // Configure the EDDI tab
             setStatusInfo();
 
-            //// Need to set up the correct information in the hero text depending on from where we were started
+            // Need to set up the correct information in the hero text depending on from where we were started
             if (fromVA)
             {
+                // Allow the EDDI VA plugin to change window state
+                VaWindowStateChange = new vaWindowStateChangeDelegate(OnVaWindowStateChange);
                 heroText.Text = "Any changes made here will take effect automatically in VoiceAttack.  You can close this window when you have finished.";
             }
             else
@@ -55,11 +162,23 @@ namespace Eddi
             }
 
             EDDIConfiguration eddiConfiguration = EDDIConfiguration.FromFile();
-            eddiHomeSystemText.Text = eddiConfiguration.HomeSystem;
-            eddiHomeStationText.Text = eddiConfiguration.HomeStation;
+            eddiHomeSystemText.Text = eddiConfiguration.validSystem == true ? eddiConfiguration.HomeSystem : string.Empty;
+            eddiHomeStationText.Text = eddiConfiguration.validStation == true ? eddiConfiguration.HomeStation : string.Empty;
             eddiInsuranceDecimal.Text = eddiConfiguration.Insurance.ToString(CultureInfo.InvariantCulture);
             eddiVerboseLogging.IsChecked = eddiConfiguration.Debug;
             eddiBetaProgramme.IsChecked = eddiConfiguration.Beta;
+            if (eddiConfiguration.Gender == "Female")
+            {
+                eddiGenderFemale.IsChecked = true;
+            }
+            else if (eddiConfiguration.Gender == "Male")
+            {
+                eddiGenderMale.IsChecked = true;
+            }
+            else
+            {
+                eddiGenderNeither.IsChecked = true;
+            }
 
             Logging.Verbose = eddiConfiguration.Debug;
 
@@ -136,7 +255,7 @@ namespace Eddi
             {
                 Logging.Debug("Adding configuration tab for " + monitor.MonitorName());
 
-                UserControl monitorConfiguration = monitor.ConfigurationTabItem();
+                System.Windows.Controls.UserControl monitorConfiguration = monitor.ConfigurationTabItem();
                 // Only show a tab if this can be turned off or has configuration elements
                 if (monitorConfiguration != null || !monitor.IsRequired())
                 {
@@ -187,7 +306,7 @@ namespace Eddi
                 }
 
                 // Add responder-specific configuration items
-                UserControl monitorConfiguration = responder.ConfigurationTabItem();
+                System.Windows.Controls.UserControl monitorConfiguration = responder.ConfigurationTabItem();
                 if (monitorConfiguration != null)
                 {
                     monitorConfiguration.Margin = new Thickness(10);
@@ -199,7 +318,28 @@ namespace Eddi
                 tabControl.Items.Add(item);
             }
 
+            RestoreWindowState();
             EDDI.Instance.Start();
+        }
+
+        // Hook the window Loaded event to set minimize/maximize state at startup 
+        private void windowLoaded(object sender, RoutedEventArgs e)
+        {
+            var senderWindow = sender as Window;
+
+            if (Properties.Settings.Default.Maximized || Properties.Settings.Default.Minimized)
+            {
+                if (Properties.Settings.Default.Minimized)
+                {
+                    senderWindow.WindowState = WindowState.Minimized;
+                }
+                else
+                {
+                    senderWindow.WindowState = WindowState.Maximized;
+                }
+
+                Visibility = Visibility.Visible;
+            }
         }
 
         // Handle changes to the eddi tab
@@ -207,14 +347,22 @@ namespace Eddi
         {
             EDDIConfiguration eddiConfiguration = EDDIConfiguration.FromFile();
             eddiConfiguration.HomeSystem = string.IsNullOrWhiteSpace(eddiHomeSystemText.Text) ? null : eddiHomeSystemText.Text.Trim();
+            eddiConfiguration = EDDI.Instance.updateHomeSystem(eddiConfiguration);
             eddiConfiguration.ToFile();
+
+            // Update the UI for invalid results
+            runValidation(eddiHomeSystemText);
         }
 
         private void homeStationChanged(object sender, TextChangedEventArgs e)
         {
             EDDIConfiguration eddiConfiguration = EDDIConfiguration.FromFile();
             eddiConfiguration.HomeStation = string.IsNullOrWhiteSpace(eddiHomeStationText.Text) ? null : eddiHomeStationText.Text.Trim();
+            eddiConfiguration = EDDI.Instance.updateHomeStation(eddiConfiguration);
             eddiConfiguration.ToFile();
+
+            // Update the UI for invalid results
+            runValidation(eddiHomeStationText);
         }
 
         private void insuranceChanged(object sender, TextChangedEventArgs e)
@@ -229,6 +377,30 @@ namespace Eddi
             {
                 // Bad user input; ignore it
             }
+        }
+
+        private void isMale_Checked(object sender, RoutedEventArgs e)
+         {
+             EDDIConfiguration eddiConfiguration = EDDIConfiguration.FromFile();
+             eddiConfiguration.Gender = "Male";
+             eddiConfiguration.ToFile();
+             EDDI.Instance.Cmdr.gender = "Male";
+          }
+
+        private void isFemale_Checked(object sender, RoutedEventArgs e)
+        {
+             EDDIConfiguration eddiConfiguration = EDDIConfiguration.FromFile();
+             eddiConfiguration.Gender = "Female";
+             eddiConfiguration.ToFile();
+             EDDI.Instance.Cmdr.gender = "Female";
+        }
+
+        private void isNeitherGender_Checked(object sender, RoutedEventArgs e)
+        {
+            EDDIConfiguration eddiConfiguration = EDDIConfiguration.FromFile();
+            eddiConfiguration.Gender = "Neither";
+            eddiConfiguration.ToFile();
+            EDDI.Instance.Cmdr.gender = "Neither";
         }
 
         private void verboseLoggingEnabled(object sender, RoutedEventArgs e)
@@ -285,6 +457,7 @@ namespace Eddi
         private void setStatusInfo()
         {
             versionText.Text = Constants.EDDI_VERSION;
+            Title = "EDDI v." + Constants.EDDI_VERSION;
 
             if (EDDI.Instance.UpgradeVersion != null)
             {
@@ -361,7 +534,7 @@ namespace Eddi
                 }
                 catch (Exception)
                 {
-                    companionAppText.Text = "Unable to log in.  This is usually a temporary issue with Frontier's servvice; please try again later";
+                    companionAppText.Text = "Unable to log in.  This is usually a temporary issue with Frontier's service; please try again later";
                 }
             }
             else if (companionAppCodeText.Visibility == Visibility.Visible)
@@ -389,7 +562,7 @@ namespace Eddi
                 }
                 catch (Exception)
                 {
-                    setUpCompanionAppStage1("Unable to log in.  This is usually a temporary issue with Frontier's servvice; please try again later");
+                    setUpCompanionAppStage1("Unable to log in.  This is usually a temporary issue with Frontier's service; please try again later");
                 }
             }
         }
@@ -528,6 +701,40 @@ namespace Eddi
             SpeechService.Instance.ReloadConfiguration();
         }
 
+        // Called from the VoiceAttack plugin if the "Configure EDDI" voice command has
+        // been given and the EDDI configuration window is already open. If the window
+        // is minimize, restore it, otherwise the plugin will ignore the command.
+        public delegate void vaWindowStateChangeDelegate(WindowState state, bool minimizeCheck);
+        public vaWindowStateChangeDelegate VaWindowStateChange;
+        public void OnVaWindowStateChange(WindowState state, bool minimizeCheck)
+        {
+            if (minimizeCheck && WindowState == WindowState.Minimized)
+                WindowState = WindowState.Normal;
+            else if (!minimizeCheck && WindowState != state)
+                WindowState = state;
+        }
+
+        protected override void OnClosing(CancelEventArgs e)
+        {
+            base.OnClosing(e);
+
+            if (!e.Cancel)
+            {
+                // Save window position here as the RestoreBounds rect gets set
+                // to empty somewhere between here and OnClosed.
+                SaveWindowState();
+
+                if (!fromVA)
+                {
+                    // When in OnClosed(), if the EDDI window was closed while minimized
+                    // (under debugger), monitorThread.Join() would block waiting for a
+                    // thread(s) to terminate. Strange, because it does not block when the
+                    // window is closed in the normal or maximized state.
+                    EDDI.Instance.Stop();
+                }
+            }
+        }
+
         protected override void OnClosed(EventArgs e)
         {
             base.OnClosed(e);
@@ -535,8 +742,7 @@ namespace Eddi
             if (!fromVA)
             {
                 SpeechService.Instance.ShutUp();
-                EDDI.Instance.Stop();
-                Application.Current.Shutdown();
+                System.Windows.Application.Current.Shutdown();
             }
         }
 
@@ -548,44 +754,199 @@ namespace Eddi
             e.Handled = !regex.IsMatch(e.Text);
         }
 
-        private async void sendLogsClicked(object sender, RoutedEventArgs e)
+        private async void createGithubIssueClicked(object sender, RoutedEventArgs e)
         {
             // Write out useful information to the log before procedding
             Logging.Info("EDDI version: " + Constants.EDDI_VERSION);
             Logging.Info("Commander name: " + (EDDI.Instance.Cmdr != null ? EDDI.Instance.Cmdr.name : "unknown"));
-            var progress = new Progress<string>(s => sendLogButton.Content = "Uploading log..." + s);
-            await Task.Factory.StartNew(() => uploadLog(progress), TaskCreationOptions.LongRunning);
+
+            // Prepare a truncated log file for export if verbose logging is enabled
+            if (eddiVerboseLogging.IsChecked.Value)
+            {
+                Logging.Debug("Preparing log for export.");
+                var progress = new Progress<string>(s => githubIssueButton.Content = "Preparing log..." + s);
+                await Task.Factory.StartNew(() => prepareLog(progress), TaskCreationOptions.LongRunning);
+            }
+            
+            createGithubIssue();
         }
 
-        public static void uploadLog(IProgress<string> progress)
+        private void ChangeLog_Click(object sender, RoutedEventArgs e)
         {
-            using (WebClient client = new WebClient())
+            ChangeLogWindow changeLog = new ChangeLogWindow();
+            changeLog.Show();
+        }
+
+        public static void prepareLog(IProgress<string> progress)
+        {
+            try
             {
-                try
+                string issueLogDir = Constants.DATA_DIR + @"\logexport\";
+                string issueLogFile = issueLogDir + "eddi_issue.log";
+                string desktopPath = Environment.GetFolderPath(Environment.SpecialFolder.Desktop) + @"\eddi_issue.zip";
+
+                string[] log;
+                lock (logLock)
                 {
-                    progress.Report("");
-                    client.UploadFile("http://api.eddp.co/log", Constants.DATA_DIR + @"\\eddi.log");
-                    progress.Report("done");
+                    log = File.ReadAllLines(Constants.DATA_DIR + @"\eddi.log");
+                }
+                if (log.Length == 0) { return; }
+
+                progress.Report("");
+                List<string> outputLines = new List<string>();
+                // Use regex to isolate DateTimes from the string
+                Regex recentLogsRegex = new Regex(@"^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})");
+
+                foreach (string line in log)
+                {
                     try
                     {
-                        File.Delete(Constants.DATA_DIR + @"\\eddi.log");
+                        // Parse log file lines so that we can examine DateTimes
+                        string linedatestring = recentLogsRegex.Match(line).Value;
+                        string formatString = "s"; // i.e. DateTimeFormatInfo.SortableDateTimePattern
+                        if (DateTime.TryParseExact(linedatestring, formatString, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out DateTime linedate))
+                        {
+                            linedate = linedate.ToUniversalTime();
+                            double elapsedHours = (DateTime.UtcNow - linedate).TotalHours;
+                            // Fill the issue log with log lines from the most recent hour only
+                            if (elapsedHours < 1.0)
+                            {
+                                outputLines.Add(line);
+                            }
+                        }
                     }
-                    catch (Exception ex)
+                    catch (Exception)
                     {
-                        Logging.Error("Failed to delete file after upload", ex);
+                        // Do nothing, adding to the debug log creates a feedback loop
                     }
                 }
-                catch (Exception ex)
+                if (outputLines.Count == 0)
                 {
-                    progress.Report("failed");
-                    Logging.Error("Failed to upload log", ex);
+                    Logging.Error("Error parsing log. Algorithm failed to return any matches.");
+                    return;
                 }
+
+                // Create a temporary issue log file, delete any remnants from prior issue reporting
+                Directory.CreateDirectory(issueLogDir);
+                File.WriteAllLines(issueLogFile, outputLines);
+
+                // Copy the issue log & zip it to the desktop so that it can be added to the Github issue
+                File.Delete(desktopPath);
+                ZipFile.CreateFromDirectory(issueLogDir, desktopPath);
+
+                // Clear the temporary issue log file & directory
+                File.Delete(issueLogFile);
+                Directory.Delete(issueLogDir);
+
+                progress.Report("done");
             }
+            catch (Exception ex)
+            {
+                progress.Report("failed");
+                Logging.Error("Failed to prepare log", ex);
+
+            }
+        }
+
+        private void createGithubIssue()
+        {
+            Process.Start("https://github.com/EDCD/EDDI/issues/new");
         }
 
         private void upgradeClicked(object sender, RoutedEventArgs e)
         {
             EDDI.Instance.Upgrade();
+        }
+
+        private void EDDIClicked(object sender, RoutedEventArgs e)
+        {
+            Process.Start("https://github.com/EDCD/EDDI/blob/master/README.md");
+        }
+
+        private void WikiClicked(object sender, RoutedEventArgs e)
+        {
+            Process.Start("https://github.com/EDCD/EDDI/wiki");
+        }
+
+        private void TroubleshootClicked(object sender, RoutedEventArgs e)
+        {
+            Process.Start("https://github.com/EDCD/EDDI/blob/master/TROUBLESHOOTING.md");
+        }
+
+        private void runValidation(System.Windows.Controls.TextBox textBox)
+        {
+            BindingExpression b = BindingOperations.GetBindingExpression(textBox, System.Windows.Controls.TextBox.TextProperty);
+            try
+            {
+                b.ValidateWithoutUpdate();
+            }
+            catch { }
+        }
+
+        private void eddiHomeSystemText_LostFocus(object sender, RoutedEventArgs e)
+        {
+            // Discard invalid results
+            EDDIConfiguration eddiConfiguration = EDDIConfiguration.FromFile();
+            if (!eddiConfiguration.validSystem)
+            {
+                eddiConfiguration.HomeSystem = null;
+                eddiHomeSystemText.Text = string.Empty;
+                eddiConfiguration.ToFile();
+            }
+        }
+
+        private void eddiHomeStationText_LostFocus(object sender, RoutedEventArgs e)
+        {
+            // Discard invalid results
+            EDDIConfiguration eddiConfiguration = EDDIConfiguration.FromFile();
+            if (!eddiConfiguration.validStation)
+            {
+                eddiConfiguration.HomeStation = null;
+                eddiHomeStationText.Text = string.Empty;
+                eddiConfiguration.ToFile();
+            }
+        }
+    }
+
+    public class ValidSystemRule : ValidationRule
+    {
+        public override ValidationResult Validate(object value, CultureInfo cultureInfo)
+        {
+            EDDIConfiguration eddiConfiguration = EDDIConfiguration.FromFile();
+
+            if (value == null)
+            {
+                return ValidationResult.ValidResult;
+            }
+            if (eddiConfiguration.validSystem)
+            {
+                return ValidationResult.ValidResult;
+            }
+            else
+            {
+                return new ValidationResult(false, "Invalid System");
+            }
+        }
+    }
+
+    public class ValidStationRule : ValidationRule
+    {
+        public override ValidationResult Validate(object value, CultureInfo cultureInfo)
+        {
+            EDDIConfiguration eddiConfiguration = EDDIConfiguration.FromFile();
+
+            if (value == null)
+            {
+                return ValidationResult.ValidResult;
+            }
+            if (eddiConfiguration.validStation)
+            {
+                return ValidationResult.ValidResult;
+            }
+            else
+            {
+                return new ValidationResult(false, "Invalid Station");
+            }
         }
     }
 }

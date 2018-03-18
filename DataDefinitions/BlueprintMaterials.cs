@@ -1,10 +1,5 @@
 ﻿using Newtonsoft.Json;
-using System;
 using System.Collections.Generic;
-using System.ComponentModel;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using Utilities;
 
 namespace EddiDataDefinitions
@@ -25,7 +20,7 @@ namespace EddiDataDefinitions
 
         static BlueprintMaterials()
         {
-            string data = Net.DownloadString("http://api.eddp.co/_blueprintrequirements");
+            string data = Net.DownloadString(Constants.EDDI_SERVER_URL + "blueprintrequirements.json");
             if (data != null)
             {
                 Dictionary<string, BlueprintMaterials> blueprints = JsonConvert.DeserializeObject<Dictionary<string, BlueprintMaterials>>(data);

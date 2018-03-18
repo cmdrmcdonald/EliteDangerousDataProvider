@@ -1,14 +1,9 @@
 ﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
 using EddiVoiceAttackResponder;
 using System.Collections.Generic;
-using System;
 using System.Speech.Synthesis;
 using System.IO;
-using System.Speech.AudioFormat;
 using System.Threading;
-using System.Globalization;
-using System.Collections.ObjectModel;
-using System.Linq;
 using EddiSpeechService;
 using CSCore;
 using CSCore.Codecs.WAV;
@@ -22,6 +17,7 @@ namespace Tests
     [TestClass]
     public class SpeechTests
     {
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2202:Do not dispose objects multiple times")] // this usage is perfectly correct    
         [TestMethod]
         public void TestPhonemes()
         {
@@ -80,6 +76,7 @@ namespace Tests
             SpeechService.Instance.Say(ShipDefinitions.FromEliteID(128049309), @"<break time=""100ms""/>We're on our way to " + Translations.StarSystem("i Bootis") + ".", true);
         }
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2202:Do not dispose objects multiple times")] // this usage is perfecrtly correct    
         [TestMethod]
         public void TestAudio()
         {
@@ -129,16 +126,24 @@ namespace Tests
         [TestMethod]
         public void TestPowerplay()
         {
-            //SpeechService.Say(ShipDefinitions.ShipFromEliteID(128049363), Translations.Power("Aisling Duval") + ".");
-            //SpeechService.Say(ShipDefinitions.ShipFromEliteID(128049363), Translations.Power("Archon Delaine") + ".");
-            //SpeechService.Say(ShipDefinitions.ShipFromEliteID(128049363), Translations.Power("Arissa Lavigny-Duval") + ".");
-            //SpeechService.Say(ShipDefinitions.ShipFromEliteID(128049363), Translations.Power("Denton Patreus") + ".");
-            //SpeechService.Say(ShipDefinitions.ShipFromEliteID(128049363), Translations.Power("Edmund Mahon") + ".");
-            //SpeechService.Say(ShipDefinitions.ShipFromEliteID(128049363), Translations.Power("Felicia Winters") + ".");
-            //SpeechService.Say(ShipDefinitions.ShipFromEliteID(128049363), Translations.Power("Pranav Antal") + ".");
-            //SpeechService.Say(ShipDefinitions.ShipFromEliteID(128049363), Translations.Power("Zachary Hudson") + ".");
-            //SpeechService.Say(ShipDefinitions.ShipFromEliteID(128049363), Translations.Power("Zemina Torval") + ".");
-            SpeechService.Instance.Say(ShipDefinitions.FromEliteID(128049363), Translations.Power("Li Yong-Rui") + ".", true);
+            var ship = ShipDefinitions.FromEliteID(128049363);
+            var speaker = SpeechService.Instance;
+            string[] powerNames = {
+                "Aisling Duval",
+                "Archon Delaine",
+                "Arissa Lavigny-Duval",
+                "Denton Patreus",
+                "Edmund Mahon",
+                "Felicia Winters",
+                "Pranav Antal",
+                "Zachary Hudson",
+                "Zemina Torval",
+                "Li Yong-Rui"
+            };
+            foreach(string powerName in powerNames)
+            {
+                speaker.Say(ship, Translations.Power(powerName) + ".", true);
+            }
         }
 
         [TestMethod]
@@ -171,6 +176,7 @@ namespace Tests
         public void TestDamage()
         {
             Ship ship = ShipDefinitions.FromEliteID(128049363);
+            var origHealth = ship.health;
             ship.health = 100;
             SpeechService.Instance.Say(ship, "Systems fully operational.", true);
             ship.health = 80;
@@ -183,6 +189,7 @@ namespace Tests
             SpeechService.Instance.Say(ship, "Systems at 20%.", true);
             ship.health = 0;
             SpeechService.Instance.Say(ship, "Systems critical.", true);
+            ship.health = origHealth;
         }
 
         [TestMethod]
@@ -366,6 +373,7 @@ namespace Tests
             Assert.IsTrue(pathingResults.SetEquals(new HashSet<string>(pathingOptions)));
         }
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2202:Do not dispose objects multiple times")] // this usage is perfecrtly correct    
         [TestMethod]
         public void TestSpeech()
         {
@@ -388,6 +396,7 @@ namespace Tests
             }
         }
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2202:Do not dispose objects multiple times")] // this usage is perfecrtly correct    
         [TestMethod]
         public void TestDropOff()
         {

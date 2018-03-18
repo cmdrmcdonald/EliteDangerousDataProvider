@@ -1,6 +1,4 @@
 ﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
-using System;
-using Newtonsoft.Json;
 using EddiDataDefinitions;
 using EddiEvents;
 using EddiJournalMonitor;
@@ -116,6 +114,20 @@ namespace Tests
         }
 
         [TestMethod]
+        public void TestJournalDocked2()
+        {
+            string line = @"{ ""timestamp"":""2017-04-14T19:34:32Z"",""event"":""Docked"",""StationName"":""Freeholm"",""StationType"":""AsteroidBase"",""StarSystem"":""Artemis"",""StationFaction"":""Artemis Empire Assembly"",""FactionState"":""Boom"",""StationGovernment"":""$government_Patronage;"",""StationGovernment_Localised"":""Patronage"",""StationAllegiance"":""Empire"",""StationEconomy"":""$economy_Industrial;"",""StationEconomy_Localised"":""Industrial"",""DistFromStarLS"":2527.211914,""StationServices"":[""Refuel""]}";
+            List<Event> events = JournalMonitor.ParseJournalEntry(line);
+            Assert.IsTrue(events.Count == 1);
+
+            DockedEvent theEvent = (DockedEvent)events[0];
+
+            Assert.AreEqual("AsteroidBase", theEvent.model);
+            Assert.AreEqual(1, theEvent.stationservices.Count);
+            Assert.AreEqual("Refuel", theEvent.stationservices[0]);
+        }
+
+        [TestMethod]
         public void TestJournalMessageReceived1()
         {
             string line = @"{ ""timestamp"":""2016-10-07T03:02:44Z"", ""event"":""ReceiveText"", ""From"":""$ShipName_Police_Federation;"", ""From_Localised"":""Federal Security Service"", ""Message"":""$Police_StartPatrol03;"", ""Message_Localised"":""Receiving five by five, I'm in the air now, joining patrol."", ""Channel"":""npc"" }";
@@ -141,12 +153,75 @@ namespace Tests
             MessageReceivedEvent event1 = (MessageReceivedEvent)events[0];
 
             Assert.IsFalse(event1.player);
-            Assert.AreEqual("NPC", event1.source);
+            Assert.AreEqual("Pirate", event1.source);
             Assert.AreEqual("Jonathan Dallard", event1.from);
 
             NPCCargoScanCommencedEvent event2 = (NPCCargoScanCommencedEvent)events[1];
 
             Assert.AreEqual("Pirate", event2.by);
+        }
+
+        [TestMethod]
+        public void TestJournalPlayerDirectMessage()
+        {
+            string line = "{ \"timestamp\":\"2017-10-12T19:58:46Z\", \"event\":\"ReceiveText\", \"From\":\"SlowIce\", \"Message\":\"good luck\", \"Channel\":\"player\" }";
+
+            List<Event> events = JournalMonitor.ParseJournalEntry(line);
+            Assert.IsTrue(events.Count == 1);
+
+            MessageReceivedEvent event1 = (MessageReceivedEvent)events[0];
+
+            Assert.IsTrue(event1.player);
+            Assert.AreEqual("Commander", event1.source);
+            Assert.AreEqual("SlowIce", event1.from);
+            Assert.AreEqual("good luck", event1.message);
+        }
+
+        [TestMethod]
+        public void TestJournalPlayerLocalChat()
+        {
+           string line = @"{ ""timestamp"":""2017 - 10 - 12T20: 39:25Z"", ""event"":""ReceiveText"", ""From"":""Rebecca Lansing"", ""Message"":""Hi there"", ""Channel"":""local"" }";
+            List<Event> events = JournalMonitor.ParseJournalEntry(line);
+            Assert.IsTrue(events.Count == 1);
+
+            MessageReceivedEvent event1 = (MessageReceivedEvent)events[0];
+
+            Assert.IsTrue(event1.player);
+            Assert.AreEqual("Commander", event1.source);
+            Assert.AreEqual("Rebecca Lansing", event1.from);
+            Assert.AreEqual("Hi there", event1.message);
+        }
+
+        [TestMethod]
+        public void TestJournalPlayerWingChat()
+        {
+            string line = @"{ ""timestamp"":""2017-10-12T21:11:10Z"", ""event"":""ReceiveText"", ""From"":""SlowIce"", ""Message"":""hello"", ""Channel"":""wing"" }";
+            List<Event> events = JournalMonitor.ParseJournalEntry(line);
+            Assert.IsTrue(events.Count == 1);
+
+            MessageReceivedEvent event1 = (MessageReceivedEvent)events[0];
+
+            Assert.IsTrue(event1.player);
+            Assert.AreEqual("Wing mate", event1.source);
+            Assert.AreEqual("SlowIce", event1.from);
+            Assert.AreEqual("hello", event1.message);
+        }
+
+        [TestMethod]
+        public void TestJournalPlayerMulticrewChat()
+        {
+            // Test for messages received from multicrew. These are received without a defined key for 'Channel' in the player journal.
+            string line = @"{ ""timestamp"":""2017 - 12 - 06T22: 40:54Z"", ""event"":""ReceiveText"", ""From"":""Nexonoid"", ""Message"":""whats up"" }";
+            List<Event> events = JournalMonitor.ParseJournalEntry(line);
+            Assert.IsTrue(events.Count == 1);
+
+            MessageReceivedEvent event1 = (MessageReceivedEvent)events[0];
+
+            Assert.IsTrue(event1.player);
+            Assert.AreEqual("multicrew", event1.channel);
+            Assert.AreEqual("Crew mate", event1.source);
+            Assert.AreEqual("Nexonoid", event1.from);
+            Assert.AreEqual("whats up", event1.message);
         }
 
         [TestMethod]

@@ -1,11 +1,7 @@
-﻿using EddiDataDefinitions;
-using EddiEvents;
+﻿using EddiEvents;
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace EddiShipMonitor
 {
@@ -21,6 +17,7 @@ namespace EddiShipMonitor
             VARIABLES.Add("ship", "The ship that was sold");
             VARIABLES.Add("shipid", "The ID of the ship that was sold");
             VARIABLES.Add("price", "The price for which the ship was sold");
+            VARIABLES.Add("system", "The system where the ship was sold");
         }
 
         [JsonProperty("ship")]
@@ -31,12 +28,16 @@ namespace EddiShipMonitor
 
         [JsonProperty("price")]
         public long price { get; private set; }
+        
+        [JsonProperty("system")]
+        public string system { get; private set; }        
 
-        public ShipSoldEvent(DateTime timestamp, string ship, int shipId, long price) : base(timestamp, NAME)
+        public ShipSoldEvent(DateTime timestamp, string ship, int shipId, long price, string system) : base(timestamp, NAME)
         {
             this.ship = ship;
             this.shipid = shipId;
             this.price = price;
+            this.system = system;
         }
     }
 }

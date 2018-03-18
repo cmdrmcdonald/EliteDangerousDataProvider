@@ -1,11 +1,9 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
-using System.Threading.Tasks;
 using Utilities;
 
 namespace EddiJournalMonitor
@@ -16,6 +14,7 @@ namespace EddiJournalMonitor
         public string Directory;
         public Regex Filter;
         public Action<string> Callback;
+        public static string journalFileName = null;
 
         // Keep track of status
         private bool running;
@@ -30,6 +29,7 @@ namespace EddiJournalMonitor
         }
 
         /// <summary>Monitor the netlog for changes, running a callback when the file changes</summary>
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2202:Do not dispose objects multiple times")] // this usage is perfectly correct
         public void start()
         {
             if (Directory == null || Directory.Trim() == "")
@@ -55,9 +55,10 @@ namespace EddiJournalMonitor
             {
                 lastSize = fileInfo.Length;
                 lastName = fileInfo.Name;
+                journalFileName = lastName;
 
                 // Elite-specific: start off by grabbing the first line so that we know if we're in beta or live
-                using (var fs = new FileStream(fileInfo.FullName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                using (FileStream fs = new FileStream(fileInfo.FullName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
                 using (StreamReader reader = new StreamReader(fs, Encoding.UTF8))
                 {
                     string firstLine = reader.ReadLine() ?? "";
@@ -78,9 +79,26 @@ namespace EddiJournalMonitor
                 {
                     lastName = fileInfo == null ? null : fileInfo.Name;
                     lastSize = 0;
+                    if (fileInfo != null)
+                    {
+                        journalFileName = fileInfo.Name;
+                    }
+                    else
+                    {
+                        // A player journal file could not be found. Sleep until a player journal file is found.
+                        Logging.Info("Error locating Elite Dangerous player journal. Journal monitor is not active. Have you installed and run Elite Dangerous previously? ");
+                        while (fileInfo == null)
+                        {
+                            Thread.Sleep(500);
+                            fileInfo = FindLatestFile(Directory, Filter);
+                        }
+                        Logging.Info("Elite Dangerous player journal found. Journal monitor activated.");
+                        return;
+                    }
                 }
                 else
                 {
+                    journalFileName = fileInfo.Name;
                     long thisSize = fileInfo.Length;
                     long seekPos = 0;
                     int readLen = 0;
