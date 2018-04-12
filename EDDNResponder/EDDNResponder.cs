@@ -1,14 +1,13 @@
 ﻿using Eddi;
 using EddiDataDefinitions;
+using EddiDataProviderService;
 using EddiEvents;
 using Newtonsoft.Json;
 using RestSharp;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Threading;
-using System.Threading.Tasks;
 using System.Windows.Controls;
 using Utilities;
 
@@ -19,11 +18,13 @@ namespace EDDNResponder
     /// </summary>
     public class EDDNResponder : EDDIResponder
     {
-        // We keep a local track of the starsystem information
-        private string systemName = null;
-        private decimal? systemX = null;
-        private decimal? systemY = null;
-        private decimal? systemZ = null;
+        // We keep track of the starsystem information locally
+        public string systemName { get; private set; } = null;
+        public decimal? systemX { get; private set; } = null;
+        public decimal? systemY { get; private set; } = null;
+        public decimal? systemZ { get; private set; } = null;
+
+        private StarSystemRepository starSystemRepository;
 
         public string ResponderName()
         {
@@ -40,8 +41,12 @@ namespace EDDNResponder
             return "Send station, jump, and scan information to EDDN.  EDDN is a third-party tool that gathers information on systems and markets, and provides data for most trading tools as well as starsystem information tools such as EDDB";
         }
 
-        public EDDNResponder()
+        public EDDNResponder() : this(EddiDataProviderService.StarSystemSqLiteRepository.Instance)
+        {}
+
+        public EDDNResponder(StarSystemRepository starSystemRepository)
         {
+            this.starSystemRepository = starSystemRepository;
             Logging.Info("Initialised " + ResponderName() + " " + ResponderVersion());
         }
 
@@ -131,7 +136,7 @@ namespace EDDNResponder
             // Can only proceed if we know our current system
 
             // Need to add StarSystem to scan events - can only do so if we have the data
-            if (theEvent is StarScannedEvent || theEvent is BodyScannedEvent)
+            if (theEvent is BeltScannedEvent || theEvent is StarScannedEvent || theEvent is BodyScannedEvent)
             {
                 if (systemName == null || systemX == null || systemY == null || systemZ == null)
                 {
@@ -167,9 +172,13 @@ namespace EDDNResponder
 
         private void handleDockedEvent(DockedEvent theEvent)
         {
-            // When we dock we have access to commodity and outfitting information
-            sendCommodityInformation();
-            sendOutfittingInformation();
+            if (eventSystemNameMatches(theEvent.system))
+            {
+                // When we dock we have access to commodity and outfitting information
+                sendCommodityInformation();
+                sendOutfittingInformation();
+                sendShipyardInformation();
+            }
         }
 
         private void handleMarketInformationUpdatedEvent(MarketInformationUpdatedEvent theEvent)
@@ -177,6 +186,7 @@ namespace EDDNResponder
             // When we dock we have access to commodity and outfitting information
             sendCommodityInformation();
             sendOutfittingInformation();
+            sendShipyardInformation();
         }
 
         private void sendCommodityInformation()
@@ -186,6 +196,18 @@ namespace EDDNResponder
             // API and should be reported
             if (EDDI.Instance.CurrentStation != null && EDDI.Instance.CurrentStation.commodities != null && EDDI.Instance.CurrentStation.commodities.Count > 0 && EDDI.Instance.CurrentStation.commodities[0].avgprice != null)
             {
+                List<EDDNEconomy> eddnEconomies = new List<EDDNEconomy>();
+                if (EDDI.Instance.CurrentStation.economies != null)
+                {
+                    foreach (CompanionAppEconomy economy in EDDI.Instance.CurrentStation.economies)
+                    {
+                        EDDNEconomy eddnEconomy = new EDDNEconomy();
+                        eddnEconomy.name = economy.name;
+                        eddnEconomy.proportion = economy.proportion;
+                        eddnEconomies.Add(eddnEconomy);
+                    }
+                }
+
                 List<EDDNCommodity> eddnCommodities = new List<EDDNCommodity>();
                 foreach (Commodity commodity in EDDI.Instance.CurrentStation.commodities)
                 {
@@ -216,13 +238,22 @@ namespace EDDNResponder
                     data.Add("timestamp", DateTime.Now.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ"));
                     data.Add("systemName", systemName);
                     data.Add("stationName", EDDI.Instance.CurrentStation.name);
+                    if (eddnEconomies.Count > 0)
+                    {
+                        data.Add("economies", eddnEconomies);
+                    }
                     data.Add("commodities", eddnCommodities);
+                    if (EDDI.Instance.CurrentStation.prohibited.Count > 0)
+                    {
+                        data.Add("prohibited", EDDI.Instance.CurrentStation.prohibited);
+                    }
 
                     EDDNBody body = new EDDNBody();
                     body.header = generateHeader();
                     body.schemaRef = "https://eddn.edcd.io/schemas/commodity/3" + (EDDI.Instance.inBeta ? "/test" : "");
                     body.message = data;
 
+                    Logging.Debug("EDDN message is: " + JsonConvert.SerializeObject(body));
                     sendMessage(body);
                 }
             }
@@ -262,6 +293,36 @@ namespace EDDNResponder
             }
         }
 
+        private void sendShipyardInformation()
+        {
+            if (EDDI.Instance.CurrentStation != null && EDDI.Instance.CurrentStation.shipyard != null)
+            {
+                List<string> eddnShips = new List<string>();
+                foreach (Ship ship in EDDI.Instance.CurrentStation.shipyard)
+                {
+                        eddnShips.Add(ship.EDName);
+                }
+
+                // Only send the message if we have ships
+                if (eddnShips.Count > 0)
+                {
+                    IDictionary<string, object> data = new Dictionary<string, object>();
+                    data.Add("timestamp", DateTime.Now.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ"));
+                    data.Add("systemName", EDDI.Instance.CurrentStation.systemname);
+                    data.Add("stationName", EDDI.Instance.CurrentStation.name);
+                    data.Add("ships", eddnShips);
+
+                    EDDNBody body = new EDDNBody();
+                    body.header = generateHeader();
+                    body.schemaRef = "https://eddn.edcd.io/schemas/shipyard/2" + (EDDI.Instance.inBeta ? "/test" : "");
+                    body.message = data;
+
+                    sendMessage(body);
+                }
+            }
+        }
+
+
         private static string generateUploaderId()
         {
             // Uploader ID is a hash of the commander's name
@@ -288,7 +349,6 @@ namespace EDDNResponder
 
         private static void sendMessage(EDDNBody body)
         {
-            Logging.Debug(JsonConvert.SerializeObject(body));
             var client = new RestClient("https://eddn.edcd.io:4430/");
             var request = new RestRequest("upload/", Method.POST);
             request.AddParameter("application/json", JsonConvert.SerializeObject(body), ParameterType.RequestBody);
@@ -320,6 +380,35 @@ namespace EDDNResponder
         public UserControl ConfigurationTabItem()
         {
             return null;
+        }
+
+        public bool eventSystemNameMatches(string eventSystem)
+        {
+            // Check to make sure the eventSystem given matches the systemName we expected to see.
+            if (systemName == eventSystem)
+            {
+                return true;
+            }
+
+            StarSystem system = starSystemRepository.GetStarSystem(eventSystem);
+            if (system != null)
+            {
+                // Provide a fallback data source for system coordinate metadata if the eventSystem does not match the systemName we expected
+                systemName = system.name;
+                systemX = system.x;
+                systemY = system.y;
+                systemZ = system.z;
+                return true;
+            }
+            else
+            {
+                // Set values to null if data isn't available. If any data is null, data shall not be sent to EDDN.
+                systemName = eventSystem;
+                systemX = null;
+                systemY = null;
+                systemZ = null;
+                return false;
+            }
         }
     }
 }

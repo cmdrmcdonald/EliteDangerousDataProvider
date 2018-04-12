@@ -2,9 +2,9 @@
 ; SEE THE DOCUMENTATION FOR DETAILS ON CREATING INNO SETUP SCRIPT FILES!
 
 #define MyAppName "EDDI"
-#define MyAppVersion "2.3.0"
-#define MyAppPublisher "Cmdr McDonald"
-#define MyAppURL "https://github.com/cmdrmcdonald/EliteDangerousDataProvider/"
+#define MyAppVersion "3.0.0-rc2"
+#define MyAppPublisher "Elite Dangerous Community Developers (EDCD)"
+#define MyAppURL "https://github.com/EDCD/EDDI/"
 #define MyAppExeName "EDDI.exe"
 
 [Setup]
@@ -19,8 +19,10 @@ AppPublisher={#MyAppPublisher}
 AppPublisherURL={#MyAppURL}
 AppSupportURL={#MyAppURL}
 AppUpdatesURL={#MyAppURL}
-DefaultDirName=C:\Program Files (x86)\VoiceAttack\Apps\{#MyAppName}
+DefaultDirName={reg:HKCU\Software\VoiceAttack.com\VoiceAttack,InstallPath|{pf32}\VoiceAttack}\Apps\{#MyAppName}
 DefaultGroupName={#MyAppName}
+SourceDir="{#SourcePath}\bin\Release"
+OutputDir="{#SourcePath}\bin\Installer"
 OutputBaseFilename={#MyAppName}-{#MyAppVersion}
 Compression=lzma
 SolidCompression=yes
@@ -40,52 +42,42 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 Name: "quicklaunchicon"; Description: "{cm:CreateQuickLaunchIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked; OnlyBelowVersion: 0,6.1
 
 [Files]
-Source: "{#SourcePath}EDDI\bin\Debug\EDDI.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#SourcePath}EDDI\bin\Debug\x86\*.*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs replacesameversion
-Source: "{#SourcePath}EDDI\bin\Debug\AsyncIO.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#SourcePath}EDDI\bin\Debug\CommonMark.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#SourcePath}EDDI\bin\Debug\Cottle.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#SourcePath}EDDI\bin\Debug\CredentialManagement.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#SourcePath}EDDI\bin\Debug\CSCore.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#SourcePath}EDDI\bin\Debug\eddi.json"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#SourcePath}EDDI\bin\Debug\EddiCompanionAppService.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#SourcePath}EDDI\bin\Debug\EddiDataDefinitions.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#SourcePath}EDDI\bin\Debug\EddiDataProviderService.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#SourcePath}EDDI\bin\Debug\EddiEddnResponder.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#SourcePath}EDDI\bin\Debug\EddiEddpMonitor.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#SourcePath}EDDI\bin\Debug\EddiEdsmResponder.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#SourcePath}EDDI\bin\Debug\EddiEvents.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#SourcePath}EDDI\bin\Debug\EddiGalnetMonitor.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#SourcePath}EDDI\bin\Debug\EddiJournalMonitor.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#SourcePath}EDDI\bin\Debug\EddiMaterialMonitor.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#SourcePath}EDDI\bin\Debug\EddiSpeechResponder.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#SourcePath}EDDI\bin\Debug\EddiSpeechService.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#SourcePath}EDDI\bin\Debug\EddiShipMonitor.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#SourcePath}EDDI\bin\Debug\EddiStarMapService.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#SourcePath}EDDI\bin\Debug\EntityFramework.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#SourcePath}EDDI\bin\Debug\EntityFramework.SqlServer.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#SourcePath}EDDI\bin\Debug\Exceptionless.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#SourcePath}EDDI\bin\Debug\Exceptionless.Wpf.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#SourcePath}EDDI\bin\Debug\Help.md"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#SourcePath}EDDI\bin\Debug\MathNet.Numerics.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#SourcePath}EDDI\bin\Debug\Newtonsoft.Json.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#SourcePath}EDDI\bin\Debug\NetMQ.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#SourcePath}EDDI\bin\Debug\RestSharp.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#SourcePath}EDDI\bin\Debug\SimpleFeedReader.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#SourcePath}EDDI\bin\Debug\System.Data.SQLite.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#SourcePath}EDDI\bin\Debug\System.Data.SQLite.EF6.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#SourcePath}EDDI\bin\Debug\System.Data.SQLite.Linq.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#SourcePath}EDDI\bin\Debug\Utilities.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#SourcePath}EDDI\bin\Debug\Variables.md"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#SourcePath}VoiceAttackResponder\EDDI.vap"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#SourcePath}EDDI\bin\Debug\EddiVoiceAttackResponder.dll"; DestDir: "{app}"; Flags: ignoreversion
+Source: "EDDI.exe"; DestDir: "{app}"; Flags: ignoreversion
+
+Source: "x86\*.*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs replacesameversion
+Source: "*.dll"; DestDir: "{app}"; Flags: ignoreversion
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
+
+Source: "eddi.json"; DestDir: "{app}"; Flags: ignoreversion
+
+Source: "ChangeLog.md"; DestDir: "{app}"; Flags: ignoreversion
+Source: "Help.md"; DestDir: "{app}"; Flags: ignoreversion
+Source: "Variables.md"; DestDir: "{app}"; Flags: ignoreversion
+
+Source: "EDDI.vap"; DestDir: "{app}"; Flags: ignoreversion
+
+Source: "EddiDataProviderService.dll.config"; DestDir: "{app}"; Flags: ignoreversion
+Source: "EDDI.exe.config"; DestDir: "{app}"; Flags: ignoreversion
+Source: "EddiVoiceAttackResponder.dll.config"; DestDir: "{app}"; Flags: ignoreversion
+Source: "EddiGalnetMonitor.dll.config"; DestDir: "{app}"; Flags: ignoreversion
+Source: "System.Data.SQLite.dll.config"; DestDir: "{app}"; Flags: ignoreversion
 
 ; Remove outdated files
 [InstallDelete]
 Type: files; Name: "{app}\Eddi.exe"
 Type: files; Name: "{app}\EDDI.ico"
 Type: files; Name: "{app}\EddiNetLogMonitor.dll"
+Type: files; Name: "{app}\Newtonsoft.Json.xml"
+Type: files; Name: "{app}\CommonMark.xml"
+Type: files; Name: "{app}\Exceptionless.Wpf.xml"
+Type: files; Name: "{app}\Exceptionless.xml"
+Type: files; Name: "{app}\MathNet.Numerics.xml"
+Type: files; Name: "{app}\System.Data.SQLite.xml"
+Type: files; Name: "{app}\SimpleFeedReader.xml"
+Type: files; Name: "{app}\CSCore.xml"
+Type: files; Name: "{app}\RestSharp.xml"
+Type: files; Name: "{app}\EntityFramework.SqlServer.xml"
+Type: files; Name: "{app}\EntityFramework.xml"
 
 ; Remove sensitive data on uninstall
 [UninstallDelete]
@@ -104,4 +96,4 @@ Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChang
 UseRelativePaths=True
 
 [Messages]
-SelectDirBrowseLabel=To continue, click Next.  If you have a custom VoiceAttack installation location, or would like to put the EDDI files in a different location, click Browse.
+SelectDirBrowseLabel=To continue, click Next. If this is not your VoiceAttack installation location, or you would like to put the EDDI files in a different location, click Browse.

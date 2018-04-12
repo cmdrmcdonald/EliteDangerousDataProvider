@@ -2,9 +2,6 @@
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace EddiEvents
 {
@@ -25,7 +22,7 @@ namespace EddiEvents
 
         public MaterialDiscoveredEvent(DateTime timestamp, Material material) : base(timestamp, NAME)
         {
-            this.name = (material == null ? null : material.name);
+            this.name = material?.name;
         }
     }
 }

@@ -1,11 +1,12 @@
 ﻿using CSCore;
-using CSCore.Codecs;
 using CSCore.Codecs.WAV;
 using CSCore.SoundOut;
 using CSCore.Streams.Effects;
 using EddiDataDefinitions;
 using Newtonsoft.Json;
 using System;
+using System.Collections.Generic;
+using System.ComponentModel;
 using System.Globalization;
 using System.IO;
 using System.Security;
@@ -18,13 +19,30 @@ using Utilities;
 namespace EddiSpeechService
 {
     /// <summary>Provide speech services with a varying amount of alterations to the voice</summary>
-    public class SpeechService
+    public class SpeechService : INotifyPropertyChanged
     {
         private SpeechServiceConfiguration configuration;
 
         private static readonly object activeSpeechLock = new object();
         private ISoundOut activeSpeech;
         private int activeSpeechPriority;
+
+        private static bool _eddiSpeaking;
+        public static bool eddiSpeaking
+        {
+            get
+            {
+                return _eddiSpeaking;
+            }
+            set
+            {
+                if (_eddiSpeaking != value)
+                {
+                    _eddiSpeaking = value;
+                    Instance.NotifyPropertyChanged("eddiSpeaking");
+                }
+            }
+        }
 
         private static SpeechService instance;
 
@@ -104,10 +122,6 @@ namespace EddiSpeechService
         public void Speak(string speech, string voice, int echoDelay, int distortionLevel, int chorusLevel, int reverbLevel, int compressLevel, bool wait = true, int priority = 3)
         {
             if (speech == null || speech.Trim() == "") { return; }
-
-            // For now we rudely set distortion to 0 regardless of what the calling function wanted.  Might enable this again one day
-            // if we can find a decent way of doing distortion that doesn't destroy speakers
-            distortionLevel = 0;
 
             // If the user wants to disable SSML then we remove any tags here
             if (configuration.DisableSsml && (speech.Contains("<")))
@@ -201,22 +215,25 @@ namespace EddiSpeechService
 
         private void addEffectsToSource(ref IWaveSource source, int chorusLevel, int reverbLevel, int echoDelay, int distortionLevel)
         {
+            // Effects level is increased by damage if distortion is enabled
+            int effectsLevel = fxLevel(distortionLevel);
+
             // Add various effects...
-            Logging.Debug("Effects level is " + configuration.EffectsLevel + ", chorus level is " + chorusLevel + ", reverb level is " + reverbLevel + ", echo delay is " + echoDelay);
+            Logging.Debug("Effects level is " + effectsLevel + ", chorus level is " + chorusLevel + ", reverb level is " + reverbLevel + ", echo delay is " + echoDelay);
 
             // We need to extend the duration of the wave source if we have any effects going on
             if (chorusLevel != 0 || reverbLevel != 0 || echoDelay != 0)
             {
                 // Add a base of 500ms plus 10ms per effect level over 50
-                Logging.Debug("Extending duration by " + 500 + Math.Max(0, (configuration.EffectsLevel - 50) * 10) + "ms");
-                source = source.AppendSource(x => new ExtendedDurationWaveSource(x, 500 + Math.Max(0, (configuration.EffectsLevel - 50) * 10)));
+                Logging.Debug("Extending duration by " + 500 + Math.Max(0, (effectsLevel - 50) * 10) + "ms");
+                source = source.AppendSource(x => new ExtendedDurationWaveSource(x, 500 + Math.Max(0, (effectsLevel - 50) * 10)));
             }
 
             // We always have chorus
             if (chorusLevel != 0)
             {
                 Logging.Debug("Adding chorus");
-                source = source.AppendSource(x => new DmoChorusEffect(x) { Depth = chorusLevel, WetDryMix = Math.Min(100, (int)(180 * ((decimal)configuration.EffectsLevel) / ((decimal)100))), Delay = 16, Frequency = (configuration.EffectsLevel / 10), Feedback = 25 });
+                source = source.AppendSource(x => new DmoChorusEffect(x) { Depth = chorusLevel, WetDryMix = Math.Min(100, (int)(180 * (effectsLevel) / ((decimal)100))), Delay = 16, Frequency = (effectsLevel / 10), Feedback = 25 });
             }
 
             // We only have reverb and echo if we're not transmitting or receiving
@@ -225,22 +242,20 @@ namespace EddiSpeechService
             if (reverbLevel != 0)
             {
                 Logging.Debug("Adding reverb");
-                // We tone down the reverb level with the distortion level, as the combination is nasty
-                source = source.AppendSource(x => new DmoWavesReverbEffect(x) { ReverbTime = (int)(1 + 999 * ((decimal)configuration.EffectsLevel) / ((decimal)100)), ReverbMix = Math.Max(-96, -96 + (96 * reverbLevel / 100) - distortionLevel) });
+                source = source.AppendSource(x => new DmoWavesReverbEffect(x) { ReverbTime = (int)(1 + 999 * (effectsLevel) / ((decimal)100)), ReverbMix = Math.Max(-96, -96 + (96 * reverbLevel / 100)) });
             }
 
             if (echoDelay != 0)
             {
                 Logging.Debug("Adding echo");
-                // We tone down the echo level with the distortion level, as the combination is nasty
-                source = source.AppendSource(x => new DmoEchoEffect(x) { LeftDelay = echoDelay, RightDelay = echoDelay, WetDryMix = Math.Max(5, (int)(10 * ((decimal)configuration.EffectsLevel) / ((decimal)100)) - distortionLevel), Feedback = Math.Max(0, 10 - distortionLevel / 2) });
+                source = source.AppendSource(x => new DmoEchoEffect(x) { LeftDelay = echoDelay, RightDelay = echoDelay, WetDryMix = Math.Max(5, (int)(10 * (effectsLevel) / ((decimal)100))), Feedback = 0 });
             }
             //}
 
-            if (configuration.EffectsLevel > 0 && distortionLevel > 0)
+            if (effectsLevel != 0 && chorusLevel != 0)
             {
-                Logging.Debug("Adding distortion");
-                source = source.AppendSource(x => new DmoDistortionEffect(x) { Edge = distortionLevel, Gain = -distortionLevel / 2, PostEQBandwidth = 4000, PostEQCenterFrequency = 4000 });
+                Logging.Debug("Adjusting gain");
+                source = source.AppendSource(x => new DmoCompressorEffect(x) { Gain = effectsLevel / 15 });
             }
 
             //if (radio)
@@ -353,13 +368,14 @@ namespace EddiSpeechService
 
                         synth.SetOutputToWaveStream(stream);
 
+                        // Keep XML version at 1.0. Version 1.1 is not recommended for general use. https://en.wikipedia.org/wiki/XML#Versions
                         if (speech.Contains("<"))
                         {
                             Logging.Debug("Obtaining best guess culture");
-                            string culture = bestGuessCulture(synth);
+                            string culture = @" xml:lang=""" + bestGuessCulture(synth) + @"""";
                             Logging.Debug("Best guess culture is " + culture);
-                            speech = @"<?xml version=""1.0"" encoding=""UTF-8""?><speak version=""1.0"" xmlns=""http://www.w3.org/2001/10/synthesis"" xml:lang=""" + bestGuessCulture(synth) + @""">" + escapeSsml(speech) + @"</speak>";
-                            Logging.Debug("Feeding SSML to synthesizer: " + speech);
+                            speech = @"<?xml version=""1.0"" encoding=""UTF-8""?><speak version=""1.0"" xmlns=""http://www.w3.org/2001/10/synthesis""" + culture + ">" + escapeSsml(speech) + @"</speak>";
+                            Logging.Debug("Feeding SSML to synthesizer: " + escapeSsml(speech));
                             synth.SpeakSsml(speech);
                         }
                         else
@@ -376,8 +392,12 @@ namespace EddiSpeechService
                 }
                 catch (Exception ex)
                 {
-                    Logging.Warn("speech failed: ", ex);
-                    Logging.Error("Speech failed", @"{""speech"":""" + speech + @"""}");
+                    Logging.Warn("Speech failed: ", ex);
+                    var badSpeech = new Dictionary<string, object>() {
+                        {"speech", speech},
+                    };
+                    string badSpeechJSON = JsonConvert.SerializeObject(badSpeech);
+                    Logging.Error("Speech failed", badSpeechJSON);
                 }
             });
             synthThread.Start();
@@ -394,18 +414,14 @@ namespace EddiSpeechService
                 {
                     if (synth.Voice.Name.Contains("CereVoice"))
                     {
-                        // Cereproc voices don't have the correct local so we need to set it manually
-                        if (synth.Voice.Name.Contains("Scotland") ||
-                            synth.Voice.Name.Contains("England") ||
-                            synth.Voice.Name.Contains("Ireland") ||
-                            synth.Voice.Name.Contains("Wales"))
-                        {
-                            guess = "en-GB";
-                        }
+                        /// Cereproc voices do not support the normal xml:lang attribute country/region codes (like en-GB) 
+                        /// (see https://www.cereproc.com/files/CereVoiceCloudGuide.pdf), 
+                        /// but it does support two letter country codes so we will use those instead
+                        guess = synth.Voice.Culture.Parent.Name;
                     }
                     else
                     {
-                        // Trust the voice's information
+                        // Trust the voice's information (with the complete country/region code)
                         guess = synth.Voice.Culture.Name;
                     }
                 }
@@ -426,6 +442,7 @@ namespace EddiSpeechService
                         if (activeSpeech == null)
                         {
                             Logging.Debug("We can - setting active speech");
+                            eddiSpeaking = true;
                             activeSpeech = soundout;
                             activeSpeechPriority = priority;
                             started = true;
@@ -441,17 +458,26 @@ namespace EddiSpeechService
         private string escapeSsml(string text)
         {
             // Our input text might have SSML elements in it but the rest needs escaping
-            // Our valid SSML elements are break, play and phoneme, so encode these differently for now
-            // Also escape any double quotes inside the elements
             string result = text;
+
+             // We need to make sure file names for the play function include a "/" (e.g. C:/)
+            result = Regex.Replace(result, "(<.+?src=\")(.:)(.*?" + @"\/>)", "$1" + "$2SSSSS" + "$3");
+            
+            // Our valid SSML elements are audio, break, emphasis, play, phoneme, & prosody so encode these differently for now
+            // Also escape any double quotes inside the elements
             result = Regex.Replace(result, "(<[^>]*)\"", "$1ZZZZZ");
             result = Regex.Replace(result, "(<[^>]*)\"", "$1ZZZZZ");
             result = Regex.Replace(result, "(<[^>]*)\"", "$1ZZZZZ");
             result = Regex.Replace(result, "(<[^>]*)\"", "$1ZZZZZ");
+            result = Regex.Replace(result, "<(audio.*?)>", "XXXXX$1YYYYY");
             result = Regex.Replace(result, "<(break.*?)>", "XXXXX$1YYYYY");
             result = Regex.Replace(result, "<(play.*?)>", "XXXXX$1YYYYY");
             result = Regex.Replace(result, "<(phoneme.*?)>", "XXXXX$1YYYYY");
             result = Regex.Replace(result, "<(/phoneme)>", "XXXXX$1YYYYY");
+            result = Regex.Replace(result, "<(prosody.*?)>", "XXXXX$1YYYYY");
+            result = Regex.Replace(result, "<(/prosody)>", "XXXXX$1YYYYY");
+            result = Regex.Replace(result, "<(emphasis.*?)>", "XXXXX$1YYYYY");
+            result = Regex.Replace(result, "<(/emphasis)>", "XXXXX$1YYYYY");
 
             // Now escape anything that is still present
             result = SecurityElement.Escape(result);
@@ -460,6 +486,7 @@ namespace EddiSpeechService
             result = Regex.Replace(result, "XXXXX", "<");
             result = Regex.Replace(result, "YYYYY", ">");
             result = Regex.Replace(result, "ZZZZZ", "\"");
+            result = Regex.Replace(result, "SSSSS", @"\");
             return result;
         }
 
@@ -475,6 +502,7 @@ namespace EddiSpeechService
                     activeSpeech.Dispose();
                     activeSpeech = null;
                     Logging.Debug("Stopped current speech");
+                    eddiSpeaking = false;
                 }
             }
         }
@@ -517,8 +545,8 @@ namespace EddiSpeechService
 
         private int chorusLevelForShip(Ship ship)
         {
-            // This is not affected by ship parameters
-            return (int)(60 * ((decimal)configuration.EffectsLevel) / ((decimal)100));
+            // This may be affected by ship parameters
+            return (int)(60 * (Math.Max(fxLevel(distortionLevelForShip(ship)), (decimal)configuration.EffectsLevel) / (decimal)100));
         }
 
         private int reverbLevelForShip(Ship ship)
@@ -533,10 +561,21 @@ namespace EddiSpeechService
             int distortionLevel = 0;
             if (ship != null && configuration.DistortOnDamage)
             {
-
-                distortionLevel = Math.Min((100 - (int)ship.health) / 2, 15);
+                distortionLevel = (100 - (int)ship.health);
             }
             return distortionLevel;
+        }
+
+        private int fxLevel(decimal distortionLevel)
+        {
+            // Effects level is increased by damage if distortion is enabled
+            int distortionFX = 0;
+            if (distortionLevel > 0)
+            {
+                distortionFX = (int)Decimal.Round(((decimal)distortionLevel / 100) * (100 - configuration.EffectsLevel));
+                Logging.Debug("Calculating effect of distortion on speech effects: +" + distortionFX);
+            }
+            return configuration.EffectsLevel + distortionFX;
         }
 
         private ISoundOut GetSoundOut()
@@ -549,6 +588,13 @@ namespace EddiSpeechService
             {
                 return new DirectSoundOut();
             }
+        }
+
+        public event PropertyChangedEventHandler PropertyChanged;
+
+        public void NotifyPropertyChanged(string propName)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propName));
         }
     }
 }

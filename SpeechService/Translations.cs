@@ -1,10 +1,8 @@
-﻿using Newtonsoft.Json;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
 
 namespace EddiSpeechService
 {
@@ -233,18 +231,15 @@ namespace EddiSpeechService
                 {
                     for (int j = 0; j < match.Groups[i].Captures.Count; j++)
                     {
-Console.WriteLine("Results[" + i + "][" + j + "] is *" + match.Groups[i].Captures[j].Value.Trim()+ "*");
                         string part = match.Groups[i].Captures[j].Value.Trim();
 
                         if (DIGIT.IsMatch(part))
                         {
-                            Console.WriteLine("Part " + part + " is digit");
                             // The part is a number; turn it in to ICAO if required
                             results.Add(useICAO ? ICAO(part, true) : part);
                         }
                         else if (PLANET.IsMatch(part))
                         {
-                            Console.WriteLine("Part " + part + " is planet");
                             // The part is a planet; turn it in to ICAO if required
                             results.Add(useICAO ? ICAO(part, true) : part);
                         }
@@ -255,13 +250,11 @@ Console.WriteLine("Results[" + i + "][" + j + "] is *" + match.Groups[i].Capture
                         }
                         else if (SUBSTARS.IsMatch(part))
                         {
-                            Console.WriteLine("Part " + part + " is substars");
                             // The part is uppercase; turn it in to ICAO if required
                             results.Add(UPPERCASE.Replace(part, m => useICAO ? ICAO(m.Value, true) : string.Join<char>(" ", m.Value)));
                         }
                         else if (TEXT.IsMatch(part))
                         {
-                            Console.WriteLine("Part " + part + " is text");
                             // The part is uppercase; turn it in to ICAO if required
                             results.Add(useICAO ? ICAO(part) : part);
                         }
@@ -271,7 +264,6 @@ Console.WriteLine("Results[" + i + "][" + j + "] is *" + match.Groups[i].Capture
                             results.Add(part);
                         }
                     }
-                    Console.WriteLine("Results is " + Regex.Replace(string.Join(" ", results), @"\s+", " "));
                 }
             }
 
@@ -356,15 +348,11 @@ Console.WriteLine("Results[" + i + "][" + j + "] is *" + match.Groups[i].Capture
                 }
 
                 string secondPiece = Match.Groups[2].Value;
-                Console.WriteLine("1) Second piece is " + secondPiece);
                 if (useICAO)
                 {
                     secondPiece = ICAO(secondPiece, true);
                 }
-                Console.WriteLine("2) Second piece is " + secondPiece);
                 secondPiece = secondPiece.Replace("-", " dash ");
-                Console.WriteLine("3) Second piece is " + secondPiece);
-
                 starSystem = firstPiece + subPiece + " " + secondPiece;
             }
             else if (starSystem.StartsWith("2MASS ")

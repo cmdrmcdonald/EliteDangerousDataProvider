@@ -59,7 +59,7 @@ namespace Tests
             Ship courier;
 
             // Set ourselves as in beta to stop sending data to remote systems
-            EDDI.Instance.eventHandler(new FileHeaderEvent(DateTime.Now, "beta", "beta"));
+            EDDI.Instance.eventHandler(new FileHeaderEvent(DateTime.Now, "JournalBeta.txt", "beta", "beta"));
             Logging.Verbose = true;
 
             // Start a ship monitor
@@ -73,6 +73,7 @@ namespace Tests
             sidewinder = shipMonitor.GetShip(sidewinderId);
             Assert.AreEqual(sidewinder, shipMonitor.GetCurrentShip());
             Assert.AreEqual(sidewinder.model, "Sidewinder");
+            Assert.AreEqual(100, sidewinder.health);
 
             // Purchase a Courier
             SendEvents(@"{ ""timestamp"":""2017-04-24T08:14:37Z"", ""event"":""ShipyardBuy"", ""ShipType"":""empire_courier"", ""ShipPrice"":2231423, ""StoreOldShip"":""SideWinder"", ""StoreShipID"":901 }", shipMonitor);
@@ -87,6 +88,7 @@ namespace Tests
             courier = shipMonitor.GetShip(courierId);
             Assert.AreEqual(courier, shipMonitor.GetCurrentShip());
             Assert.AreEqual(courier.model, "Imperial Courier");
+            Assert.AreEqual(100, courier.health);
 
             // Swap back to the SideWinder
             SendEvents(@"{ ""timestamp"":""2017-04-24T08:17:15Z"", ""event"":""ShipyardSwap"", ""ShipType"":""sidewinder"", ""ShipID"":901, ""StoreOldShip"":""Empire_Courier"", ""StoreShipID"":902 }", shipMonitor);
@@ -138,10 +140,10 @@ namespace Tests
             Assert.AreEqual(courier.name, "Scunthorpe Bound");
 
             // Sell the Sidewinder
-            // SendEvents(@"{ ""timestamp"":""2017-04-24T08:27:51Z"", ""event"":""ShipyardSell"", ""ShipType"":""sidewinder"", ""SellShipID"":901, ""ShipPrice"":25272 }", shipMonitor);
+            SendEvents(@"{ ""timestamp"":""2017-04-24T08:27:51Z"", ""event"":""ShipyardSell"", ""ShipType"":""sidewinder"", ""SellShipID"":901, ""ShipPrice"":25272 }", shipMonitor);
 
             // Sell the Courier.  Note that this isn't strictly legal, as it involves selling our active ship, but we can get away with it in our test harness
-            // SendEvents(@"{ ""timestamp"":""2017-04-24T08:27:51Z"", ""event"":""ShipyardSell"", ""ShipType"":""Empire_Courier"", ""SellShipID"":902, ""ShipPrice"":2008281 }", shipMonitor);
+            SendEvents(@"{ ""timestamp"":""2017-04-24T08:27:51Z"", ""event"":""ShipyardSell"", ""ShipType"":""Empire_Courier"", ""SellShipID"":902, ""ShipPrice"":2008281 }", shipMonitor);
         }
 
         private void SendEvents(string line, ShipMonitor monitor)

@@ -1,13 +1,13 @@
 ﻿using System;
 using Newtonsoft.Json;
 using System.Collections.Generic;
-using System.Linq;
 using System.Text.RegularExpressions;
 using Utilities;
 using System.ComponentModel;
 using System.Text;
 using System.IO;
 using System.IO.Compression;
+using System.Linq;
 
 namespace EddiDataDefinitions
 {
@@ -18,25 +18,38 @@ namespace EddiDataDefinitions
 
         /// <summary>the ID of this ship for this commander</summary>
         public int LocalId { get; set; }
+
         /// <summary>the manufacturer of the ship (Lakon, CoreDynamics etc.)</summary>
         [JsonIgnore]
         public string manufacturer { get; set; }
+
         /// <summary>the spoken manufacturer of the ship (Lakon, CoreDynamics etc.)</summary>
         [JsonIgnore]
         public List<Translation> phoneticmanufacturer { get; set; }
-        /// <summary>the model of the ship (Python, Anaconda, etc.)</summary>
-        public string model { get; set; }
+
         /// <summary>the spoken model of the ship (Python, Anaconda, etc.)</summary>
         [JsonIgnore]
         public List<Translation> phoneticmodel { get; set; }
+
         /// <summary>the size of this ship</summary>
         [JsonIgnore]
         public string size { get; set; }
+
+        /// <summary>the size of the military compartment slots</summary>
+        [JsonIgnore]
+        public int? militarysize { get; set; }
+
         /// <summary>the total tonnage cargo capacity</summary>
         public int cargocapacity { get; set; }
+
         /// <summary>the current tonnage cargo carried</summary>
         [JsonIgnore]
-        public int cargocarried { get; set; }
+        public int cargocarried {
+            get
+            {
+                return cargo.Sum(item => item.amount);
+            }
+        }
 
         /// <summary>the specific cargo carried</summary>
         [JsonIgnore]
@@ -74,6 +87,24 @@ namespace EddiDataDefinitions
                 {
                     _name = value;
                     NotifyPropertyChanged("name");
+                }
+            }
+        }
+
+        private string _model;
+        /// <summary>the model of the ship (Python, Anaconda, etc.)</summary>
+        public string model
+        {
+            get
+            {
+                return _model;
+            }
+            set
+            {
+                if (_model != value)
+                {
+                    _model = value;
+                    NotifyPropertyChanged("model");
                 }
             }
         }
@@ -145,7 +176,27 @@ namespace EddiDataDefinitions
         /// <summary>
         /// The raw JSON from the companion API for this ship
         /// </summary>
-        public string raw { get; set; }
+        private string _raw;
+        public string raw {
+            get
+            {
+                return _raw;
+            }
+            set
+            {
+                if (_raw != value)
+                { 
+                    _raw = value;
+                    NotifyPropertyChanged("RawIsNotNull");
+                }
+            }
+        }
+
+        public bool RawIsNotNull
+        {
+            get { return !string.IsNullOrEmpty(_raw); }
+        }
+
 
         /// <summary>the name of the system in which this ship is stored; null if the commander is in this ship</summary>
         private string _starsystem;
@@ -199,6 +250,8 @@ namespace EddiDataDefinitions
         public decimal? fueltanktotalcapacity { get; set; } // Capacity including additional tanks
         public List<Hardpoint> hardpoints { get; set; }
         public List<Compartment> compartments { get; set; }
+        public List<LaunchBay> launchbays { get; set; }
+
         public string paintjob { get; set; }
 
         // Admin
@@ -211,12 +264,14 @@ namespace EddiDataDefinitions
 
         public Ship()
         {
+            health = 100M;
             hardpoints = new List<Hardpoint>();
             compartments = new List<Compartment>();
+            launchbays = new List<LaunchBay>();
             cargo = new List<Cargo>();
         }
 
-        public Ship(long EDID, string EDName, string Manufacturer, List<Translation> PhoneticManufacturer, string Model, List<Translation> PhoneticModel, string Size)
+        public Ship(long EDID, string EDName, string Manufacturer, List<Translation> PhoneticManufacturer, string Model, List<Translation> PhoneticModel, string Size, int? MilitarySize)
         {
             this.EDID = EDID;
             this.EDName = EDName;
@@ -225,8 +280,12 @@ namespace EddiDataDefinitions
             model = Model;
             phoneticmodel = PhoneticModel;
             size = Size;
+            militarysize = MilitarySize;
+            health = 100M;
             hardpoints = new List<Hardpoint>();
             compartments = new List<Compartment>();
+            launchbays = new List<LaunchBay>();
+            cargo = new List<Cargo>();
         }
 
         public string SpokenName(string defaultname = null)
@@ -280,6 +339,7 @@ namespace EddiDataDefinitions
             return result;
         }
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2202:Do not dispose objects multiple times")] // this usage is perfectly correct    
         public string CoriolisUri()
         {
             if (raw != null)
@@ -316,6 +376,33 @@ namespace EddiDataDefinitions
             return null;
         }
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2202:Do not dispose objects multiple times")] // this usage is perfectly correct
+        public string EDShipyardUri()
+        {
+            if (raw != null)
+            {
+                // Generate an EDShipyard import URI to retain as much information as possible
+                
+                string uri = "http://www.edshipyard.com/";
+
+                // Take the ship's JSON, gzip it, then turn it in to base64 and attach it to the base uri
+                string unescapedraw = raw.Replace(@"\""", @"""");
+                var bytes = Encoding.UTF8.GetBytes(unescapedraw);
+                using (var streamIn = new MemoryStream(bytes))
+                using (var streamOut = new MemoryStream())
+                {
+                    using (var gzipStream = new GZipStream(streamOut, CompressionLevel.Optimal, true))
+                    {
+                        streamIn.CopyTo(gzipStream);
+                    }
+                    uri += "#/I=" + Uri.EscapeDataString(Convert.ToBase64String(streamOut.ToArray()));
+                }
+
+                return uri;
+            }
+            return null;
+        }
+
         /// <summary>
         /// Augment the ship's information from the model
         /// </summary>
@@ -330,6 +417,7 @@ namespace EddiDataDefinitions
                 phoneticmanufacturer = template.phoneticmanufacturer;
                 phoneticmodel = template.phoneticmodel;
                 size = template.size;
+                militarysize = template.militarysize;
                 if (role == null)
                 {
                     role = EddiDataDefinitions.Role.MultiPurpose;

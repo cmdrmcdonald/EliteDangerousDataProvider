@@ -4,10 +4,8 @@ using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
-using System.IO;
 using System.Linq;
 using System.Net;
-using System.Text;
 using Utilities;
 
 namespace EddiDataProviderService
@@ -15,6 +13,7 @@ namespace EddiDataProviderService
     /// <summary>Access to EDDP data<summary>
     public class DataProviderService
     {
+        //TODO: Change this to use an EDCD server or other established data service (EDSM?)
         private const string BASE = "http://api.eddp.co/";
 
         public static StarSystem GetSystemData(string system, decimal? x, decimal?y, decimal? z)
@@ -47,21 +46,23 @@ namespace EddiDataProviderService
             if (response == null || response == "")
             {
                 // No information found on this system, or some other issue.  Create a very basic response
-                response = @"{""name"":""" + system + @"""";
+                Dictionary<string, object> dummyData = new Dictionary<string, object>();
+                dummyData["name"] = system;
                 if (x.HasValue)
                 {
-                    response = response + @", ""x"":" + ((decimal)x).ToString(CultureInfo.InvariantCulture);
+                    dummyData["x"] = x.GetValueOrDefault();
                 }
                 if (y.HasValue)
                 {
-                    response = response + @", ""y"":" + ((decimal)y).ToString(CultureInfo.InvariantCulture);
+                    dummyData["y"] = y.GetValueOrDefault();
                 }
                 if (z.HasValue)
                 {
-                    response = response + @", ""z"":" + ((decimal)z).ToString(CultureInfo.InvariantCulture);
+                    dummyData["z"] = z.GetValueOrDefault();
                 }
-                response = response + @", ""stations"":[]";
-                response = response + @", ""bodies"":[]}";
+                dummyData["stations"] = new Dictionary<string, object>();
+                dummyData["bodies"] = new Dictionary<string, object>();
+                response = JsonConvert.SerializeObject(dummyData);
                 Logging.Info("Generating dummy response " + response);
             }
             return StarSystemFromEDDP(response, x, y, z);
@@ -180,7 +181,7 @@ namespace EddiDataProviderService
             {
                 foreach (dynamic body in json["bodies"])
                 {
-                    if (body["group_name"] == "Belt")
+                    if ((string)body["group_name"] == "Belt")
                     {
                         // Not interested in asteroid belts
                         continue;
@@ -192,7 +193,7 @@ namespace EddiDataProviderService
                     Body.EDDBID = (long)body["id"];
                     Body.name = (string)body["name"];
                     Body.systemname = systemName;
-                    Body.type = body["group_name"];
+                    Body.type = (string)body["group_name"];
                     Body.distance = (long?)body["distance_to_arrival"];
                     Body.temperature = (long?)body["surface_temperature"];
                     Body.tidallylocked = (bool?)body["is_rotational_period_tidally_locked"];
@@ -221,7 +222,8 @@ namespace EddiDataProviderService
                         Body.gravity = (decimal?)(double?)body["gravity"];
                         Body.eccentricity = (decimal?)(double?)body["orbital_eccentricity"];
                         Body.inclination = (decimal?)(double?)body["orbital_inclination"];
-                        Body.orbitalperiod = (decimal?)(double?)body["orbital_period"];
+                        decimal? orbitalPeriodSeconds = (decimal?)(double?)body["orbital_period"];
+                        Body.orbitalperiod = orbitalPeriodSeconds / (24.0M * 60.0M * 60.0M);
                         Body.radius = (long?)body["radius"];
                         Body.rotationalperiod = (decimal?)(double?)body["rotational_period"];
                         Body.semimajoraxis = (decimal?)(double?)body["semi_major_axis"];

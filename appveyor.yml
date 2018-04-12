@@ -1,0 +1,19 @@
+version: 3.0.0-rc2-{build}
+branches:
+  only:
+  - develop
+skip_tags: true
+image: Visual Studio 2017
+configuration: Debug
+nuget:
+  project_feed: true
+before_build:
+- cmd: nuget restore
+build:
+  verbosity: minimal
+test:
+  categories:
+    except:
+    - Speech
+    - DocGen
+    - Network
