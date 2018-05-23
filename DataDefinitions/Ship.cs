@@ -1,13 +1,15 @@
 ﻿using System;
 using Newtonsoft.Json;
 using System.Collections.Generic;
-using System.Linq;
 using System.Text.RegularExpressions;
 using Utilities;
 using System.ComponentModel;
 using System.Text;
 using System.IO;
 using System.IO.Compression;
+using System.Linq;
+using System.Runtime.Serialization;
+using Newtonsoft.Json.Linq;
 
 namespace EddiDataDefinitions
 {
@@ -18,30 +20,34 @@ namespace EddiDataDefinitions
 
         /// <summary>the ID of this ship for this commander</summary>
         public int LocalId { get; set; }
+
         /// <summary>the manufacturer of the ship (Lakon, CoreDynamics etc.)</summary>
         [JsonIgnore]
         public string manufacturer { get; set; }
+
         /// <summary>the spoken manufacturer of the ship (Lakon, CoreDynamics etc.)</summary>
         [JsonIgnore]
         public List<Translation> phoneticmanufacturer { get; set; }
-        /// <summary>the model of the ship (Python, Anaconda, etc.)</summary>
-        public string model { get; set; }
+
         /// <summary>the spoken model of the ship (Python, Anaconda, etc.)</summary>
         [JsonIgnore]
         public List<Translation> phoneticmodel { get; set; }
+
         /// <summary>the size of this ship</summary>
         [JsonIgnore]
         public string size { get; set; }
+
+        /// <summary>the size of the military compartment slots</summary>
+        [JsonIgnore]
+        public int? militarysize { get; set; }
+
         /// <summary>the total tonnage cargo capacity</summary>
         public int cargocapacity { get; set; }
+
         /// <summary>the current tonnage cargo carried</summary>
         [JsonIgnore]
         public int cargocarried { get; set; }
-
-        /// <summary>the specific cargo carried</summary>
-        [JsonIgnore]
-        public List<Cargo> cargo { get; set; }
-
+ 
         private long _value;
         /// <summary>the value of the ship without cargo, in credits</summary>
         public long value
@@ -74,6 +80,24 @@ namespace EddiDataDefinitions
                 {
                     _name = value;
                     NotifyPropertyChanged("name");
+                }
+            }
+        }
+
+        private string _model;
+        /// <summary>the model of the ship (Python, Anaconda, etc.)</summary>
+        public string model
+        {
+            get
+            {
+                return _model;
+            }
+            set
+            {
+                if (_model != value)
+                {
+                    _model = value;
+                    NotifyPropertyChanged("model");
                 }
             }
         }
@@ -123,29 +147,69 @@ namespace EddiDataDefinitions
                 }
             }
         }
+
         /// <summary>the role of this ship</summary>
-        private string Role;
-        public string role
-        { get { return Role; }
+        private Role _Role = Role.MultiPurpose;
+        [JsonProperty("ShipRole")]
+        public Role Role
+        {
+            get
+            {
+                return _Role;
+            }
             set
             {
-                // Map old roles
-                if (value == "0") Role = EddiDataDefinitions.Role.MultiPurpose;
-                else if (value == "1") Role = EddiDataDefinitions.Role.Exploration;
-                else if (value == "2") Role = EddiDataDefinitions.Role.Trading;
-                else if (value == "3") Role = EddiDataDefinitions.Role.Mining;
-                else if (value == "4") Role = EddiDataDefinitions.Role.Smuggling;
-                else if (value == "5") Role = EddiDataDefinitions.Role.Piracy;
-                else if (value == "6") Role = EddiDataDefinitions.Role.BountyHunting;
-                else if (value == "7") Role = EddiDataDefinitions.Role.Combat;
-                else Role = value;
+                if (_Role != value)
+                {
+                    _Role = value;
+                    NotifyPropertyChanged("Role");
+                }
             }
+        }
+
+        [JsonExtensionData]
+        private IDictionary<string, JToken> additionalJsonData;
+
+        [OnDeserialized]
+        private void OnDeserialized(StreamingContext context)
+        {
+            if(Role == null) // legacy shipmonitor JSON
+            {
+                string roleName = (string)additionalJsonData["role"];
+                Role = Role.FromEDName(roleName) ?? Role.FromName(roleName);
+            }
+            else
+            {
+                // get the canonical role object for the given EDName
+                Role = Role.FromEDName(Role.edname);
+            }
+            additionalJsonData = null;
         }
 
         /// <summary>
         /// The raw JSON from the companion API for this ship
         /// </summary>
-        public string raw { get; set; }
+        private string _raw;
+        public string raw {
+            get
+            {
+                return _raw;
+            }
+            set
+            {
+                if (_raw != value)
+                { 
+                    _raw = value;
+                    NotifyPropertyChanged("RawIsNotNull");
+                }
+            }
+        }
+
+        public bool RawIsNotNull
+        {
+            get { return !string.IsNullOrEmpty(_raw); }
+        }
+
 
         /// <summary>the name of the system in which this ship is stored; null if the commander is in this ship</summary>
         private string _starsystem;
@@ -199,6 +263,8 @@ namespace EddiDataDefinitions
         public decimal? fueltanktotalcapacity { get; set; } // Capacity including additional tanks
         public List<Hardpoint> hardpoints { get; set; }
         public List<Compartment> compartments { get; set; }
+        public List<LaunchBay> launchbays { get; set; }
+
         public string paintjob { get; set; }
 
         // Admin
@@ -211,12 +277,13 @@ namespace EddiDataDefinitions
 
         public Ship()
         {
+            health = 100M;
             hardpoints = new List<Hardpoint>();
             compartments = new List<Compartment>();
-            cargo = new List<Cargo>();
+            launchbays = new List<LaunchBay>();
         }
 
-        public Ship(long EDID, string EDName, string Manufacturer, List<Translation> PhoneticManufacturer, string Model, List<Translation> PhoneticModel, string Size)
+        public Ship(long EDID, string EDName, string Manufacturer, List<Translation> PhoneticManufacturer, string Model, List<Translation> PhoneticModel, string Size, int? MilitarySize)
         {
             this.EDID = EDID;
             this.EDName = EDName;
@@ -225,8 +292,17 @@ namespace EddiDataDefinitions
             model = Model;
             phoneticmodel = PhoneticModel;
             size = Size;
+            militarysize = MilitarySize;
+            health = 100M;
             hardpoints = new List<Hardpoint>();
             compartments = new List<Compartment>();
+            launchbays = new List<LaunchBay>();
+        }
+
+        public override string ToString()
+        {
+            // This is mostly to help with debugging
+            return name ?? $"{Role.localizedName} {model}";
         }
 
         public string SpokenName(string defaultname = null)
@@ -280,6 +356,7 @@ namespace EddiDataDefinitions
             return result;
         }
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2202:Do not dispose objects multiple times")] // this usage is perfectly correct    
         public string CoriolisUri()
         {
             if (raw != null)
@@ -300,16 +377,35 @@ namespace EddiDataDefinitions
                 }
 
                 // Add the ship's name
-                string bn;
-                if (name == null)
-                {
-                    bn = role + " " + model;
-                }
-                else
-                {
-                    bn = name;
-                }
+                string bn = name ?? $"{Role.localizedName} {model}";
                 uri += "&bn=" + Uri.EscapeDataString(bn);
+
+                return uri;
+            }
+            return null;
+        }
+
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2202:Do not dispose objects multiple times")] // this usage is perfectly correct
+        public string EDShipyardUri()
+        {
+            if (raw != null)
+            {
+                // Generate an EDShipyard import URI to retain as much information as possible
+                
+                string uri = "http://www.edshipyard.com/";
+
+                // Take the ship's JSON, gzip it, then turn it in to base64 and attach it to the base uri
+                string unescapedraw = raw.Replace(@"\""", @"""");
+                var bytes = Encoding.UTF8.GetBytes(unescapedraw);
+                using (var streamIn = new MemoryStream(bytes))
+                using (var streamOut = new MemoryStream())
+                {
+                    using (var gzipStream = new GZipStream(streamOut, CompressionLevel.Optimal, true))
+                    {
+                        streamIn.CopyTo(gzipStream);
+                    }
+                    uri += "#/I=" + Uri.EscapeDataString(Convert.ToBase64String(streamOut.ToArray()));
+                }
 
                 return uri;
             }
@@ -330,9 +426,10 @@ namespace EddiDataDefinitions
                 phoneticmanufacturer = template.phoneticmanufacturer;
                 phoneticmodel = template.phoneticmodel;
                 size = template.size;
-                if (role == null)
+                militarysize = template.militarysize;
+                if (Role == null)
                 {
-                    role = EddiDataDefinitions.Role.MultiPurpose;
+                    Role = EddiDataDefinitions.Role.MultiPurpose;
                 }
             }
         }

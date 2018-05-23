@@ -9,14 +9,15 @@
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>EddiEvents</RootNamespace>
     <AssemblyName>EddiEvents</AssemblyName>
-    <TargetFrameworkVersion>v4.5.2</TargetFrameworkVersion>
+    <TargetFrameworkVersion>v4.7.1</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
+    <TargetFrameworkProfile />
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>
     <DebugType>full</DebugType>
     <Optimize>false</Optimize>
-    <OutputPath>bin\Debug\</OutputPath>
+    <OutputPath>..\bin\Debug\</OutputPath>
     <DefineConstants>DEBUG;TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
@@ -24,15 +25,32 @@
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <DebugType>pdbonly</DebugType>
     <Optimize>true</Optimize>
-    <OutputPath>bin\Release\</OutputPath>
+    <OutputPath>..\bin\Release\</OutputPath>
     <DefineConstants>TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'">
+    <DebugSymbols>true</DebugSymbols>
+    <OutputPath>bin\x64\Debug\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <DebugType>full</DebugType>
+    <PlatformTarget>x64</PlatformTarget>
+    <ErrorReport>prompt</ErrorReport>
+    <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64'">
+    <OutputPath>bin\x64\Release\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <Optimize>true</Optimize>
+    <DebugType>pdbonly</DebugType>
+    <PlatformTarget>x64</PlatformTarget>
+    <ErrorReport>prompt</ErrorReport>
+    <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
+  </PropertyGroup>
   <ItemGroup>
-    <Reference Include="Newtonsoft.Json, Version=10.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
-      <HintPath>..\packages\Newtonsoft.Json.10.0.2\lib\net45\Newtonsoft.Json.dll</HintPath>
-      <Private>True</Private>
+    <Reference Include="Newtonsoft.Json, Version=11.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
+      <HintPath>..\packages\Newtonsoft.Json.11.0.1\lib\net45\Newtonsoft.Json.dll</HintPath>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
@@ -44,20 +62,43 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="BeltScannedEvent.cs" />
+    <Compile Include="FighterRebuiltEvent.cs" />
+    <Compile Include="JetConeDamageEvent.cs" />
+    <Compile Include="MaterialTradedEvent.cs" />
+    <Compile Include="ShipTargetedEvent.cs" />
+    <Compile Include="ShutdownEvent.cs" />
+    <Compile Include="SilentRunningEvent.cs" />
+    <Compile Include="StatusEvent.cs" />
+    <Compile Include="TechnologyBrokerEvent.cs" />
+    <Compile Include="VAInitialized.cs" />
+    <Compile Include="SRVTurretEvent.cs" />
+    <Compile Include="NearSurfaceEvent.cs" />
+    <Compile Include="SRVTurretDeployableEvent.cs" />
+    <Compile Include="UnderAttackEvent.cs" />
+    <Compile Include="VehicleDestroyedEvent.cs" />
+    <Compile Include="DatalinkMessageEvent.cs" />
+    <Compile Include="CommunityGoalEvent.cs" />
+    <Compile Include="DataVoucherAwardedEvent.cs" />
+    <Compile Include="JetConeBoostEvent.cs" />
+    <Compile Include="NavBeaconScanEvent.cs" />
     <Compile Include="CrewMemberRoleChangedEvent.cs" />
     <Compile Include="CrewMemberLaunchedEvent.cs" />
+    <Compile Include="DataScannedEvent.cs" />
     <Compile Include="FileHeaderEvent.cs" />
     <Compile Include="CrewMemberRemovedEvent.cs" />
     <Compile Include="CrewMemberLeftEvent.cs" />
     <Compile Include="CrewMemberJoinedEvent.cs" />
+    <Compile Include="FriendsEvent.cs" />
     <Compile Include="CrewRoleChanged.cs" />
     <Compile Include="CrewLeftEvent.cs" />
     <Compile Include="CrewJoinedEvent.cs" />
-    <Compile Include="DataVoucherRedeemed.cs" />
-    <Compile Include="CargoInventoryEvent.cs" />
+    <Compile Include="DataVoucherRedeemedEvent.cs" />
     <Compile Include="MaterialInventoryEvent.cs" />
     <Compile Include="FSDEngagedEvent.cs" />
     <Compile Include="BondRedeemedEvent.cs" />
+    <Compile Include="EmpirePromotionEvent.cs" />
+    <Compile Include="FederationPromotionEvent.cs" />
     <Compile Include="TradeVoucherRedeemedEvent.cs" />
     <Compile Include="BountyRedeemedEvent.cs" />
     <Compile Include="SettlementApproachedEvent.cs" />
@@ -69,17 +110,14 @@
     <Compile Include="PowerVoucherReceivedEvent.cs" />
     <Compile Include="StationNoFireZoneExitedEvent.cs" />
     <Compile Include="StationNoFireZoneEnteredEvent.cs" />
-    <Compile Include="PowerCommodityFastTrackedEvent.cs" />
-    <Compile Include="PowerCommodityDeliveredEvent.cs" />
-    <Compile Include="PowerCommodityObtainedEvent.cs" />
     <Compile Include="PowerSalaryClaimedEvent.cs" />
-    <Compile Include="PowerPerparationVoteCastEvent.cs" />
+    <Compile Include="PowerPreparationVoteCastEvent.cs" />
     <Compile Include="PowerDefectedEvent.cs" />
     <Compile Include="PowerLeftEvent.cs" />
     <Compile Include="PowerJoinedEvent.cs" />
     <Compile Include="MarketInformationUpdatedEvent.cs" />
     <Compile Include="BondAwardedEvent.cs" />
-    <Compile Include="FindPaidEvent.cs" />
+    <Compile Include="FinePaidEvent.cs" />
     <Compile Include="EngineerProgressedEvent.cs" />
     <Compile Include="ModificationAppliedEvent.cs" />
     <Compile Include="ModificationCraftedEvent.cs" />
@@ -88,16 +126,15 @@
     <Compile Include="MissionAbandonedEvent.cs" />
     <Compile Include="MissionCompletedEvent.cs" />
     <Compile Include="MissionAcceptedEvent.cs" />
+    <Compile Include="MissionRedirectedEvent.cs" />
+    <Compile Include="SearchAndRescueEvent.cs" />
     <Compile Include="JumpingEvent.cs" />
-    <Compile Include="LimpetSoldEvent.cs" />
-    <Compile Include="LimpetPurchasedEvent.cs" />
     <Compile Include="ExplorationDataSoldEvent.cs" />
     <Compile Include="ExplorationDataPurchasedEvent.cs" />
     <Compile Include="MaterialDiscoveredEvent.cs" />
     <Compile Include="MaterialDiscardedEvent.cs" />
     <Compile Include="MaterialCollectedEvent.cs" />
     <Compile Include="KilledEvent.cs" />
-    <Compile Include="CommodityRefinedEvent.cs" />
     <Compile Include="ShipInterdictionEvent.cs" />
     <Compile Include="ShipInterdictedEvent.cs" />
     <Compile Include="CommanderRanksEvent.cs" />
@@ -120,10 +157,7 @@
     <Compile Include="SRVDockedEvent.cs" />
     <Compile Include="FighterDockedEvent.cs" />
     <Compile Include="FighterLaunchedEvent.cs" />
-    <Compile Include="CommoditySoldEvent.cs" />
     <Compile Include="BountyIncurredEvent .cs" />
-    <Compile Include="CommodityEjectedEvent.cs" />
-    <Compile Include="CommodityPurchasedEvent.cs" />
     <Compile Include="DockingTimedOutEvent.cs" />
     <Compile Include="DockingDeniedEvent.cs" />
     <Compile Include="DockingGrantedEvent.cs" />
@@ -138,9 +172,9 @@
     <Compile Include="BodyScannedEvent.cs" />
     <Compile Include="StarScannedEvent.cs" />
     <Compile Include="CockpitBreachedEvent.cs" />
-    <Compile Include="CommodityCollectedEvent.cs" />
     <Compile Include="ExplorationPromotionEvent.cs" />
     <Compile Include="ScreenshotEvent.cs" />
+    <Compile Include="MusicEvent.cs" />
     <Compile Include="TradePromotionEvent.cs" />
     <Compile Include="CombatPromotionEvent.cs" />
     <Compile Include="FineIncurredEvent.cs" />

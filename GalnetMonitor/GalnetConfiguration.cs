@@ -1,6 +1,5 @@
 ﻿using Newtonsoft.Json;
 using System;
-using System.Collections.Generic;
 using System.IO;
 using Utilities;
 
@@ -16,6 +15,11 @@ namespace GalnetMonitor
 
         public string language { get; set; } = "English";
 
+        public bool galnetAlwaysOn { get; set; } = false;
+
+        [JsonIgnore]
+        static readonly object fileLock = new object();
+
         /// <summary>
         /// Obtain configuration from a file.  If the file name is not supplied the the default
         /// path of Constants.Data_DIR\galnetmonitor.json is used
@@ -30,17 +34,17 @@ namespace GalnetMonitor
             GalnetConfiguration configuration = new GalnetConfiguration();
             if (File.Exists(filename))
             {
-                string data = Files.Read(filename);
-                if (data != null)
+                try
                 {
-                    try
+                    string data = Files.Read(filename);
+                    if (data != null)
                     {
                         configuration = JsonConvert.DeserializeObject<GalnetConfiguration>(data);
                     }
-                    catch (Exception ex)
-                    {
-                        Logging.Debug("Failed to read Galnet monitor configuration", ex);
-                    }
+                }
+                catch (Exception ex)
+                {
+                    Logging.Debug("Failed to read Galnet monitor configuration", ex);
                 }
             }
             if (configuration == null)
@@ -71,7 +75,10 @@ namespace GalnetMonitor
             }
 
             string json = JsonConvert.SerializeObject(this, Formatting.Indented);
-            Files.Write(filename, json);
+            lock (fileLock)
+            {
+                Files.Write(filename, json);
+            }
         }
     }
 }

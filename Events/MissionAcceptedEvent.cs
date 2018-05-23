@@ -1,10 +1,6 @@
 ﻿using EddiDataDefinitions;
-using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace EddiEvents
 {
@@ -67,14 +63,16 @@ namespace EddiEvents
 
         public string reputation { get; private set; }
 
-        public MissionAcceptedEvent(DateTime timestamp, long? missionid, string name, string faction, string destinationsystem, string destinationstation, Commodity commodity, int? amount, string passengertype, bool? passengerswanted, string target, string targettype, string targetfaction, bool communal, DateTime? expiry, string influence, string reputation) : base(timestamp, NAME)
+        public CommodityDefinition commodityDefinition { get; private set; }
+
+        public MissionAcceptedEvent(DateTime timestamp, long? missionid, string name, string faction, string destinationsystem, string destinationstation, CommodityDefinition commodity, int? amount, string passengertype, bool? passengerswanted, string target, string targettype, string targetfaction, bool communal, DateTime? expiry, string influence, string reputation) : base(timestamp, NAME)
         {
             this.missionid = missionid;
             this.name = name;
             this.faction = faction;
             this.destinationsystem = destinationsystem;
             this.destinationstation = destinationstation;
-            this.commodity = (commodity == null ? null : commodity.name);
+            this.commodity = commodity?.localizedName;
             this.amount = amount;
             this.passengertype = passengertype;
             this.passengerswanted = passengerswanted;
@@ -85,6 +83,7 @@ namespace EddiEvents
             this.expiry = expiry;
             this.influence = influence;
             this.reputation = reputation;
+            this.commodityDefinition = commodity;
         }
     }
 }

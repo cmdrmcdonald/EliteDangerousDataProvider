@@ -12,9 +12,14 @@ namespace EddiStarMapService
         public string apiKey { get; set; }
         [JsonProperty("commanderName")]
         public string commanderName { get; set; }
+        [JsonProperty("lastSync")]
+        public DateTime lastSync { get; set; } = DateTime.MinValue;
 
         [JsonIgnore]
         private string dataPath;
+
+        [JsonIgnore]
+        static readonly object fileLock = new object();
 
         /// <summary>
         /// Obtain credentials from a file.  If the file name is not supplied the the default
@@ -30,17 +35,18 @@ namespace EddiStarMapService
             StarMapConfiguration configuration = new StarMapConfiguration();
             if (File.Exists(filename))
             {
-                string data = Files.Read(filename);
-                if (data != null)
+                try
                 {
-                    try
+                    string data = Files.Read(filename);
+                    if (data != null)
                     {
                         configuration = JsonConvert.DeserializeObject<StarMapConfiguration>(data);
+
                     }
-                    catch (Exception ex)
-                    {
-                        Logging.Debug("Failed to read starmap configuration", ex);
-                    }
+                }
+                catch (Exception ex)
+                {
+                    Logging.Debug("Failed to read starmap configuration", ex);
                 }
             }
             if (configuration == null)
@@ -59,6 +65,7 @@ namespace EddiStarMapService
         {
             apiKey = null;
             commanderName = null;
+            lastSync = DateTime.MinValue;
         }
 
         /// <summary>
@@ -78,7 +85,10 @@ namespace EddiStarMapService
             }
 
             string json = JsonConvert.SerializeObject(this, Formatting.Indented);
-            Files.Write(filename, json);
+            lock (fileLock)
+            {
+                Files.Write(filename, json);
+            }
         }
     }
 }

@@ -1,16 +1,22 @@
 ﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
-using System;
-using Newtonsoft.Json;
 using EddiDataDefinitions;
 using EddiEvents;
 using EddiJournalMonitor;
 using System.Collections.Generic;
+using Rollbar;
 
-namespace Tests
+namespace UnitTests
 {
     [TestClass]
     public class JournalMonitorTests
     {
+        [TestInitialize]
+        public void start()
+        {
+            // Prevent telemetry data from being reported based on test results
+            RollbarLocator.RollbarInstance.Config.Enabled = false;
+        }
+
         [TestMethod]
         public void TestJournalPlanetScan1()
         {
@@ -36,9 +42,9 @@ namespace Tests
             Assert.AreEqual(ev.bodyclass, "High metal content body");
             Assert.AreEqual(ev.atmosphere, "hot thick carbon dioxide atmosphere");
             Assert.IsNotNull(ev.volcanism);
-            Assert.AreEqual("Magma", ev.volcanism.type);
-            Assert.AreEqual("Iron", ev.volcanism.composition);
-            Assert.AreEqual("Minor", ev.volcanism.amount);
+            Assert.AreEqual("Magma", ev.volcanism.invariantType);
+            Assert.AreEqual("Iron", ev.volcanism.invariantComposition);
+            Assert.AreEqual("Minor", ev.volcanism.invariantAmount);
             Assert.IsTrue(ev.earthmass == (decimal)2.171783);
             Assert.IsTrue(ev.radius  == (decimal)7622170.500000);
             Assert.AreEqual(ev.gravity, Body.ms2g((decimal)14.899396));
@@ -60,6 +66,24 @@ namespace Tests
             string line = @"{ ""timestamp"":""2016-10-27T08:51:23Z"", ""event"":""Scan"", ""BodyName"":""Vela Dark Region FG-Y d3"", ""DistanceFromArrivalLS"":0.000000, ""StarType"":""K"", ""StellarMass"":0.960938, ""Radius"":692146368.000000, ""AbsoluteMagnitude"":5.375961, ""Age_MY"":230, ""SurfaceTemperature"":5108.000000, ""RotationPeriod"":393121.093750, ""Rings"":[ { ""Name"":""Vela Dark Region FG-Y d3 A Belt"", ""RingClass"":""eRingClass_MetalRich"", ""MassMT"":1.2262e+10, ""InnerRad"":1.2288e+09, ""OuterRad"":2.3812e+09 } ] }";
             List<Event> events = JournalMonitor.ParseJournalEntry(line);
             Assert.IsTrue(events.Count == 1);
+
+            StarScannedEvent theEvent = (StarScannedEvent)events[0];
+
+            Assert.AreEqual(230, theEvent.age);
+            Assert.IsNull(theEvent.eccentricity);
+            Assert.AreEqual("Vela Dark Region FG-Y d3", theEvent.name);
+            Assert.IsNull(theEvent.orbitalperiod);
+            Assert.AreEqual(692146368.000000M, theEvent.radius);
+            Assert.IsNull(theEvent.semimajoraxis);
+            Assert.AreEqual(0.960938, (double)theEvent.solarmass, 0.001);
+            Assert.AreEqual("K", theEvent.stellarclass);
+            Assert.AreEqual(5108, theEvent.temperature);
+            // Stellar extras
+            Assert.AreEqual("yellow-orange", theEvent.chromaticity);
+            Assert.AreEqual(50, theEvent.massprobability);
+            Assert.AreEqual(51, theEvent.radiusprobability);
+            Assert.AreEqual(58, theEvent.tempprobability);
+            Assert.AreEqual(7, theEvent.ageprobability);
         }
 
         [TestMethod]
@@ -116,6 +140,20 @@ namespace Tests
         }
 
         [TestMethod]
+        public void TestJournalDocked2()
+        {
+            string line = @"{ ""timestamp"":""2017-04-14T19:34:32Z"",""event"":""Docked"",""StationName"":""Freeholm"",""StationType"":""AsteroidBase"",""StarSystem"":""Artemis"",""StationFaction"":""Artemis Empire Assembly"",""FactionState"":""Boom"",""StationGovernment"":""$government_Patronage;"",""StationGovernment_Localised"":""Patronage"",""StationAllegiance"":""Empire"",""StationEconomy"":""$economy_Industrial;"",""StationEconomy_Localised"":""Industrial"",""DistFromStarLS"":2527.211914,""StationServices"":[""Refuel""]}";
+            List<Event> events = JournalMonitor.ParseJournalEntry(line);
+            Assert.IsTrue(events.Count == 1);
+
+            DockedEvent theEvent = (DockedEvent)events[0];
+
+            Assert.AreEqual("AsteroidBase", theEvent.model);
+            Assert.AreEqual(1, theEvent.stationservices.Count);
+            Assert.AreEqual("Refuel", theEvent.stationservices[0]);
+        }
+
+        [TestMethod]
         public void TestJournalMessageReceived1()
         {
             string line = @"{ ""timestamp"":""2016-10-07T03:02:44Z"", ""event"":""ReceiveText"", ""From"":""$ShipName_Police_Federation;"", ""From_Localised"":""Federal Security Service"", ""Message"":""$Police_StartPatrol03;"", ""Message_Localised"":""Receiving five by five, I'm in the air now, joining patrol."", ""Channel"":""npc"" }";
@@ -141,12 +179,75 @@ namespace Tests
             MessageReceivedEvent event1 = (MessageReceivedEvent)events[0];
 
             Assert.IsFalse(event1.player);
-            Assert.AreEqual("NPC", event1.source);
+            Assert.AreEqual("Pirate", event1.source);
             Assert.AreEqual("Jonathan Dallard", event1.from);
 
             NPCCargoScanCommencedEvent event2 = (NPCCargoScanCommencedEvent)events[1];
 
             Assert.AreEqual("Pirate", event2.by);
+        }
+
+        [TestMethod]
+        public void TestJournalPlayerDirectMessage()
+        {
+            string line = "{ \"timestamp\":\"2017-10-12T19:58:46Z\", \"event\":\"ReceiveText\", \"From\":\"SlowIce\", \"Message\":\"good luck\", \"Channel\":\"player\" }";
+
+            List<Event> events = JournalMonitor.ParseJournalEntry(line);
+            Assert.IsTrue(events.Count == 1);
+
+            MessageReceivedEvent event1 = (MessageReceivedEvent)events[0];
+
+            Assert.IsTrue(event1.player);
+            Assert.AreEqual("Commander", event1.source);
+            Assert.AreEqual("SlowIce", event1.from);
+            Assert.AreEqual("good luck", event1.message);
+        }
+
+        [TestMethod]
+        public void TestJournalPlayerLocalChat()
+        {
+           string line = @"{ ""timestamp"":""2017 - 10 - 12T20: 39:25Z"", ""event"":""ReceiveText"", ""From"":""Rebecca Lansing"", ""Message"":""Hi there"", ""Channel"":""local"" }";
+            List<Event> events = JournalMonitor.ParseJournalEntry(line);
+            Assert.IsTrue(events.Count == 1);
+
+            MessageReceivedEvent event1 = (MessageReceivedEvent)events[0];
+
+            Assert.IsTrue(event1.player);
+            Assert.AreEqual("Commander", event1.source);
+            Assert.AreEqual("Rebecca Lansing", event1.from);
+            Assert.AreEqual("Hi there", event1.message);
+        }
+
+        [TestMethod]
+        public void TestJournalPlayerWingChat()
+        {
+            string line = @"{ ""timestamp"":""2017-10-12T21:11:10Z"", ""event"":""ReceiveText"", ""From"":""SlowIce"", ""Message"":""hello"", ""Channel"":""wing"" }";
+            List<Event> events = JournalMonitor.ParseJournalEntry(line);
+            Assert.IsTrue(events.Count == 1);
+
+            MessageReceivedEvent event1 = (MessageReceivedEvent)events[0];
+
+            Assert.IsTrue(event1.player);
+            Assert.AreEqual("Wing mate", event1.source);
+            Assert.AreEqual("SlowIce", event1.from);
+            Assert.AreEqual("hello", event1.message);
+        }
+
+        [TestMethod]
+        public void TestJournalPlayerMulticrewChat()
+        {
+            // Test for messages received from multicrew. These are received without a defined key for 'Channel' in the player journal.
+            string line = @"{ ""timestamp"":""2017 - 12 - 06T22: 40:54Z"", ""event"":""ReceiveText"", ""From"":""Nexonoid"", ""Message"":""whats up"" }";
+            List<Event> events = JournalMonitor.ParseJournalEntry(line);
+            Assert.IsTrue(events.Count == 1);
+
+            MessageReceivedEvent event1 = (MessageReceivedEvent)events[0];
+
+            Assert.IsTrue(event1.player);
+            Assert.AreEqual("multicrew", event1.channel);
+            Assert.AreEqual("Crew mate", event1.source);
+            Assert.AreEqual("Nexonoid", event1.from);
+            Assert.AreEqual("whats up", event1.message);
         }
 
         [TestMethod]
@@ -160,6 +261,30 @@ namespace Tests
             MissionAcceptedEvent event1 = (MissionAcceptedEvent)events[0];
 
             Assert.AreEqual("Wine", event1.commodity);
+        }
+
+        [TestMethod]
+        public void TestFriends()
+        {
+            string line = "{ \"timestamp\":\"2017-08-24T17:22:03Z\", \"event\":\"Friends\", \"Status\":\"Online\", \"Name\":\"_Testy_McTest_\" }";
+            string line2 = "{ \"timestamp\":\"2017-08-24T17:22:03Z\", \"event\":\"Friends\", \"Status\":\"Offline\", \"Name\":\"_Testy_McTest_\" }";
+
+            List<Event> events = JournalMonitor.ParseJournalEntry(line);
+            events = JournalMonitor.ParseJournalEntry(line2);
+
+            /// Since this friend is unknown to us, the first time we see this friend no event should trigger. 
+            /// Only the second line, registering the status as offline, should be registered as an event.
+            Assert.IsTrue(events.Count == 1);
+
+            FriendsEvent @event = (FriendsEvent)events[0];
+            Friend testFriend = new Friend();
+            testFriend.name = @event.name;
+            testFriend.status = @event.status;
+
+            Assert.AreEqual("Offline", @event.status);
+
+            // Clean up
+            Eddi.EDDI.Instance.Cmdr.friends.Remove(testFriend);
         }
     }
 }

@@ -1,9 +1,8 @@
 ﻿using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using System.Runtime.Serialization;
 
 namespace EddiDataDefinitions
 {
@@ -18,10 +17,13 @@ namespace EddiDataDefinitions
         public string government { get; set; }
         public string faction { get; set; }
         public string primaryeconomy { get; set; }
-        public string state { get; set; }
+        public SystemState systemState { get; set; }
         public string security { get; set; }
         public string power { get; set; }
         public string powerstate { get; set; }
+
+        [Obsolete("Please use systemState instead")]
+        public string state => (systemState ?? SystemState.None).localizedName;
 
         /// <summary>X co-ordinate for this system</summary>
         public decimal? x { get; set; }
@@ -35,16 +37,10 @@ namespace EddiDataDefinitions
 
         /// <summary>Summary info for stations</summary>
         [JsonIgnore]
-        public List<Station> planetarystations
-        {
-            get { return stations.FindAll(s => s.IsPlanetary()); }
-        }
+        public List<Station> planetarystations => stations.FindAll(s => s.IsPlanetary());
 
         [JsonIgnore]
-        public List<Station> orbitalstations
-        {
-            get { return stations.FindAll(s => !s.IsPlanetary()); }
-        }
+        public List<Station> orbitalstations => stations.FindAll(s => !s.IsPlanetary());
 
         /// <summary>Details of bodies (stars/planets)</summary>
         public List<Body> bodies { get; set; }
@@ -66,6 +62,28 @@ namespace EddiDataDefinitions
 
         // Admin - the last time the data about this system was obtained from remote repository
         public DateTime lastupdated;
+
+        [JsonExtensionData]
+        private IDictionary<string, JToken> additionalJsonData;
+
+        [OnDeserialized]
+        private void OnDeserialized(StreamingContext context)
+        {
+            if (systemState == null)
+            {
+                string name = (string)additionalJsonData?["state"];
+                if (name != null)
+                {
+                    systemState = SystemState.FromEDName(name) ?? SystemState.FromName(name);
+                }
+            }
+            else
+            {
+                // get the canonical SystemState object for the given EDName
+                systemState = SystemState.FromEDName(systemState.edname);
+            }
+            additionalJsonData = null;
+        }
 
         public StarSystem()
         {

@@ -1,11 +1,7 @@
 ﻿using EddiDataDefinitions;
 using EddiEvents;
-using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace EddiShipMonitor
 {
@@ -37,7 +33,7 @@ namespace EddiShipMonitor
 
         public ShipLoadoutEvent(DateTime timestamp, string ship, int? shipId, string shipName, string shipIdent, List<Compartment> compartments, List<Hardpoint> hardpoints, string paintjob) : base(timestamp, NAME)
         {
-            this.ship = ship;
+            this.ship = ShipDefinitions.FromEDModel(ship).model;
             this.shipid = shipId;
             this.shipname = shipName;
             this.shipident = shipIdent;

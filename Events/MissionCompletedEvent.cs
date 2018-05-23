@@ -1,10 +1,6 @@
 ﻿using EddiDataDefinitions;
-using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace EddiEvents
 {
@@ -27,37 +23,50 @@ namespace EddiEvents
             VARIABLES.Add("reward", "The monetary reward for completing the mission");
             VARIABLES.Add("commodityrewards", "The commodity rewards for completing the mission");
             VARIABLES.Add("donation", "The monetary donation when completing the mission");
+            VARIABLES.Add("rewardCommodity", "The commodity reward name (if applicable)");
+            VARIABLES.Add("rewardAmount", "The amount of the commodity reward (if applicable)");
         }
 
-        public long? missionid { get; private set; }
+        public long? missionid { get; }
 
-        public string name { get; private set; }
+        public string name { get; }
 
-        public string faction { get; private set; }
+        public string faction { get; }
 
-        public string commodity { get; private set; }
+        public string commodity => commodityDefinition?.localizedName ?? "unknown commodity";
 
-        public int? amount { get; private set; }
+        public CommodityDefinition commodityDefinition { get; }
 
-        public bool communal { get; private set; }
+        public int? amount { get; }
 
-        public long reward { get; private set; }
+        public bool communal { get; }
 
-        public List<CommodityAmount> commodityrewards { get; private set; }
+        public long reward { get; }
 
-        public long donation { get; private set; }
+        public List<CommodityAmount> commodityrewards { get; }
 
-        public MissionCompletedEvent(DateTime timestamp, long? missionid, string name, string faction, Commodity commodity, int? amount, bool communal, long reward, List<CommodityAmount> commodityrewards, long donation) : base(timestamp, NAME)
+        public long donation { get; }
+
+        public string rewardCommodity { get; }
+
+        public int rewardAmount { get; }
+
+        public MissionCompletedEvent(DateTime timestamp, long? missionid, string name, string faction, CommodityDefinition commodity, int? amount, bool communal, long reward, List<CommodityAmount> commodityrewards, long donation) : base(timestamp, NAME)
         {
             this.missionid = missionid;
             this.name = name;
             this.faction = faction;
-            this.commodity = (commodity == null ? null : commodity.name);
+            this.commodityDefinition = commodity;
             this.amount = amount;
             this.communal = communal;
             this.reward = reward;
             this.commodityrewards = commodityrewards;
             this.donation = donation;
+            if (commodityrewards.Count > 0)
+            {
+                this.rewardCommodity = commodityrewards[0].commodity;
+                this.rewardAmount = commodityrewards[0].amount;
+            }
         }
     }
 }

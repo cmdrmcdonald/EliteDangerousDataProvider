@@ -2,22 +2,12 @@
 using EddiDataDefinitions;
 using EddiSpeechService;
 using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
-using System.Linq;
-using System.Text;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
-using System.Windows.Documents;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Navigation;
-using System.Windows.Shapes;
 using Utilities;
 
 namespace EddiShipMonitor
@@ -32,14 +22,29 @@ namespace EddiShipMonitor
         public ConfigurationWindow()
         {
             InitializeComponent();
-
             monitor = ((ShipMonitor)EDDI.Instance.ObtainMonitor("Ship monitor"));
             shipData.ItemsSource = monitor.shipyard;
+
+            EDDIConfiguration eddiConfiguration = EDDIConfiguration.FromFile();
+            string exporttarget = eddiConfiguration.exporttarget;
+            Logging.Debug("Export target from configuration: " + exporttarget);
+            exportComboBox.Text = exporttarget == null ? "Coriolis" : exporttarget;
+        }
+
+        private void onExportTargetChanged(object sender, SelectionChangedEventArgs e)
+        {
+            string exporttarget = (string)((ComboBox)e.Source).SelectedValue;
+            Logging.Debug("Export target: " + exporttarget);
+
+            EDDIConfiguration eddiConfiguration = EDDIConfiguration.FromFile();
+            eddiConfiguration.exporttarget = string.IsNullOrWhiteSpace(exporttarget) ? null : exporttarget.Trim();
+            eddiConfiguration.ToFile();
         }
 
         private void ipaClicked(object sender, RoutedEventArgs e)
         {
-            Process.Start("https://en.wikipedia.org/wiki/International_Phonetic_Alphabet");
+            string url = EddiShipMonitor.Properties.ShipMonitor.ipa_page;
+            Process.Start(url);
         }
 
         private void testShipName(object sender, RoutedEventArgs e)
@@ -47,21 +52,31 @@ namespace EddiShipMonitor
             Ship ship = (Ship)((Button)e.Source).DataContext;
             ship.health = 100;
             SpeechServiceConfiguration speechConfiguration = SpeechServiceConfiguration.FromFile();
-            if (string.IsNullOrEmpty(ship.phoneticname))
+            string nameToSpeak = String.IsNullOrEmpty(ship.phoneticname) 
+                ? ship.name 
+                : $@"<phoneme alphabet=""ipa"" ph=""{ship.phoneticname}"">{ship.name}</phoneme>";
+            string message = String.Format(Properties.ShipMonitor.ship_ready, nameToSpeak);
+            if (!string.IsNullOrEmpty(ship.phoneticname))
             {
-                SpeechService.Instance.Say(ship, ship.name + " stands ready.", false);
-            }
-            else
-            {
-                SpeechService.Instance.Say(ship, "<phoneme alphabet=\"ipa\" ph=\"" + ship.phoneticname + "\">" + ship.name + "</phoneme>" + " stands ready.", false);
+                SpeechService.Instance.Say(ship, message, false);
             }
         }
 
         private void exportShip(object sender, RoutedEventArgs e)
         {
             Ship ship = (Ship)((Button)e.Source).DataContext;
+            EDDIConfiguration eddiConfiguration = EDDIConfiguration.FromFile();
+
+            // Coriolis is the default export target
             string uri = ship.CoriolisUri();
-            Logging.Debug("URI is " + uri);
+
+            // Support EDShipyard as well.
+            if (eddiConfiguration.exporttarget == "EDShipyard")
+            {
+                uri = ship.EDShipyardUri();
+            }
+
+            Logging.Debug("Export target is " + eddiConfiguration.exporttarget + ", URI is " + uri);
 
             // URI can be very long so we can't use a simple Process.Start(), as that fails
             try
@@ -95,13 +110,13 @@ namespace EddiShipMonitor
         private void shipsUpdated(object sender, DataTransferEventArgs e)
         {
             // Update the ship monitor's information
-            monitor.writeShips();
+            monitor.Save();
         }
 
         private void shipsUpdated(object sender, SelectionChangedEventArgs e)
         {
             // Update the ship monitor's information
-            monitor.writeShips();
+            monitor.Save();
         }
     }
 

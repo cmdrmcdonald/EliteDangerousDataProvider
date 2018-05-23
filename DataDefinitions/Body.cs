@@ -1,9 +1,5 @@
 ﻿using Newtonsoft.Json;
-using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace EddiDataDefinitions
 {
@@ -49,6 +45,9 @@ namespace EddiDataDefinitions
 
         /// <summary>The stellar class of the star</summary>
         public string stellarclass;
+
+        /// <summary>The Luminosity Class of the Star (since 2.4)</summary>
+        public string luminosityclass { get; set; }
 
         /// <summary>The solar mass of the star</summary>
         public decimal? solarmass;
@@ -114,6 +113,9 @@ namespace EddiDataDefinitions
         // materials
         public List<MaterialPresence> materials;
 
+        // The reserve level
+        public string reserves;
+
         /// <summary>
         /// Convert gravity in m/s to g
         /// </summary>
@@ -134,7 +136,7 @@ namespace EddiDataDefinitions
                 if (solarradius != null) radiusprobability = StarClass.sanitiseCP(starClass.stellarRadiusCP((decimal)solarradius));
                 if (temperature != null) tempprobability = StarClass.sanitiseCP(starClass.tempCP((decimal)temperature));
                 if (age != null) ageprobability = StarClass.sanitiseCP(starClass.ageCP((decimal)age));
-                chromaticity = starClass.chromaticity;
+                chromaticity = starClass.chromaticity.localizedName;
             }
         }
     }

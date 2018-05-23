@@ -1,9 +1,5 @@
-﻿using Newtonsoft.Json;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using EddiDataDefinitions;
+using Newtonsoft.Json;
 
 namespace EddiEddpMonitor
 {
@@ -21,7 +17,7 @@ namespace EddiEddpMonitor
         [JsonProperty("faction")]
         public string Faction { get; set; }
         [JsonProperty("state")]
-        public string State { get; set; }
+        public SystemState State { get; set; }
         [JsonProperty("maxdistancefromship")]
         public long? MaxDistanceFromShip { get; set; }
         [JsonProperty("maxdistancefromhome")]

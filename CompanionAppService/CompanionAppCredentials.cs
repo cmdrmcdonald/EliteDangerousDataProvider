@@ -1,6 +1,5 @@
 ﻿using Newtonsoft.Json;
 using System;
-using System.IO;
 using Utilities;
 
 namespace EddiCompanionAppService
@@ -20,6 +19,9 @@ namespace EddiCompanionAppService
 
         [JsonIgnore]
         private string dataPath;
+
+        [JsonIgnore]
+        static readonly object fileLock = new object();
 
         /// <summary>
         /// Obtain credentials from a file.  If the file name is not supplied the the default
@@ -81,7 +83,10 @@ namespace EddiCompanionAppService
             }
 
             string json = JsonConvert.SerializeObject(this, Formatting.Indented);
-            Files.Write(filename, json);
+            lock (fileLock)
+            {
+                Files.Write(filename, json);
+            }
         }
     }
 }

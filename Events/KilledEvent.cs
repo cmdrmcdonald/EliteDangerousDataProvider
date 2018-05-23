@@ -2,9 +2,6 @@
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace EddiEvents
 {
@@ -30,7 +27,7 @@ namespace EddiEvents
         public KilledEvent(DateTime timestamp, string victim, CombatRating rating) : base(timestamp, NAME)
         {
             this.victim = victim;
-            this.rating = (rating == null ? null : rating.name);
+            this.rating = rating?.localizedName;
         }
     }
 }

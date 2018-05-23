@@ -1,16 +1,32 @@
 ﻿using Newtonsoft.Json;
-using System;
-using System.Collections.Generic;
 using System.ComponentModel;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace EddiDataDefinitions
 {
     public class MaterialAmount : INotifyPropertyChanged
     {
-        public string material { get; private set; }
+        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Populate)]
+        [DefaultValue(null)]
+        public string edname { get; private set; }
+
+        [JsonIgnore]
+        private string _material;
+        [JsonIgnore]
+        public string material
+        {
+            get
+            {
+                return _material;
+            }
+            set
+            {
+                if (_material != value)
+                {
+                    _material = value;
+                    NotifyPropertyChanged("material");
+                }
+            }
+        }
 
         [JsonIgnore]
         private int _amount;
@@ -82,29 +98,57 @@ namespace EddiDataDefinitions
             }
         }
 
-        public MaterialAmount(Material material, int amount)
+        [JsonIgnore]
+        private string _Category;
+        [JsonIgnore]
+        public string Category
         {
-            this.material = material.name;
-            this.amount = amount;
+            get
+            {
+                return _Category;
+            }
+            set
+            {
+                if (_Category != value)
+                {
+                    _Category = value;
+                    NotifyPropertyChanged("category");
+                }
+            }
         }
 
-        public MaterialAmount(Material material, int? minimum, int? desired, int? maximum)
+        public MaterialAmount(Material material, int amount)
         {
-            this.material = material.name;
-            amount = 0;
+            Material My_material = Material.FromEDName(material.edname);
+            this.material = My_material.invariantName;
+            this.edname = My_material.edname;
+            this.amount = amount;
+            this.Category = My_material.category.localizedName;
+        }
+
+        public MaterialAmount(Material material, int amount, int? minimum, int? desired, int? maximum)
+        {
+            Material My_material = Material.FromEDName(material.edname);
+            this.material = My_material.localizedName;
+            this.edname = My_material.edname;
+            this.amount = amount;
             this.minimum = minimum;
             this.desired = desired;
             this.maximum = maximum;
+            this.Category = My_material.category.localizedName;
         }
 
         [JsonConstructor]
-        public MaterialAmount(string material, int amount, int? minimum, int? desired, int? maximum)
+        public MaterialAmount(string edname, int amount, int? minimum, int? desired, int? maximum)
         {
-            this.material = material;
+            Material My_material = Material.FromEDName(edname);
+            this.material = My_material.localizedName;
+            this.edname = My_material.edname;
             this.amount = amount;
             this.minimum = minimum;
             this.desired = desired;
             this.maximum = maximum;
+            this.Category = My_material.category.localizedName;
         }
 
         public event PropertyChangedEventHandler PropertyChanged;

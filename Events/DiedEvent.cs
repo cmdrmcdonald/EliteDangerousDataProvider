@@ -2,9 +2,6 @@
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace EddiEvents
 {
@@ -13,6 +10,7 @@ namespace EddiEvents
         public const string NAME = "Died";
         public const string DESCRIPTION = "Triggered when you have died";
         public const string SAMPLE = @"{ ""timestamp"":""2016-12-29T10:15:26Z"", ""event"":""Died"", ""KillerName"":""$ShipName_Military_Federation;"", ""KillerName_Localised"":""Federal Navy Ship"", ""KillerShip"":""viper"", ""KillerRank"":""Deadly"" }";
+//        public const string SAMPLE = @"{ ""timestamp"":""2016-06-10T14:32:03Z"", ""event"":""Died"", ""Killers"":[ { ""Name"":""Cmdr HRC1"", ""Ship"":""Vulture"", ""Rank"":""Competent"" }, { ""Name"":""Cmdr HRC2"", ""Ship"":""Python"", ""Rank"":""Master"" } ] }";
         public static Dictionary<string, string> VARIABLES = new Dictionary<string, string>();
 
         static DiedEvent()
@@ -34,8 +32,18 @@ namespace EddiEvents
         public DiedEvent(DateTime timestamp, List<string> commanders, List<string> ships, List<CombatRating> ratings) : base(timestamp, NAME)
         {
             this.commanders = commanders;
-            this.ships = ships;
-            this.ratings = ratings.ConvertAll(x => x.name);
+            this.ships = killerShipModels(ships);
+            this.ratings = ratings.ConvertAll(x => x.localizedName);
+        }
+
+        public static List<string> killerShipModels(List<string> ships)
+        {
+            List<string> shipModels = new List<string>();
+            foreach (string shipName in ships)
+            {
+                shipModels.Add(ShipDefinitions.FromEDModel(shipName).model);
+            }
+            return shipModels;
         }
     }
 }

@@ -1,22 +1,18 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Utilities;
+﻿using System.Collections.Generic;
 
 namespace EDDNResponder
 {
     class EDDNCommodity
     {
+        // Schema reference: https://github.com/EDSM-NET/EDDN/blob/master/schemas/commodity-v3.0.json
         public string name;
         public int meanPrice;
         public int buyPrice;
         public int stock;
-        public dynamic stockBracket;
+        public dynamic stockBracket; // Possible values are 0, 1, 2, 3, or ""
         public int sellPrice;
         public int demand;
-        public dynamic demandBracket;
+        public dynamic demandBracket; // Possible values are 0, 1, 2, 3, or ""
         public List<string> statusFlags;
 
         public bool ShouldSerializestatusFlags()

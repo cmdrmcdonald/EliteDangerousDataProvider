@@ -1,8 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Utilities
 {
@@ -11,7 +7,7 @@ namespace Utilities
         /// <summary>
         /// Compare two version strings
         /// </summary>
-        /// <returns>1 if the first version is greater than the second version</returns>
+        /// <returns>1 if the first version is greater than the second version, 0 if they are the same, -1 if first version is less than the second version</returns>
         public static int Compare(string Version1, string Version2)
         {
             if (Version1 == null && Version2 == null)
@@ -26,7 +22,7 @@ namespace Utilities
             {
                 return -1;
             }
-            System.Text.RegularExpressions.Regex versionRegex = new System.Text.RegularExpressions.Regex(@"^([\d]+)\.([\d]+)\.([\d]+)-?([a-b])?([\d]+)?");
+            System.Text.RegularExpressions.Regex versionRegex = new System.Text.RegularExpressions.Regex(@"^([\d]+)\.([\d]+)\.([\d]+)-?([a-z]+)?([\d]+)?");
             System.Text.RegularExpressions.MatchCollection m1 = versionRegex.Matches(Version1);
             System.Text.RegularExpressions.MatchCollection m2 = versionRegex.Matches(Version2);
 

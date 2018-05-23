@@ -1,24 +1,18 @@
 ﻿using Eddi;
+using EddiEvents;
+using Newtonsoft.Json.Linq;
 using SimpleFeedReader;
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Net;
-using System.ServiceModel.Syndication;
-using System.Text;
 using System.Threading;
-using System.Threading.Tasks;
-using System.Xml;
-using System.Xml.Linq;
-using Utilities;
-using EddiEvents;
-using EddiCompanionAppService;
-using Newtonsoft.Json.Linq;
 using System.Windows.Controls;
+using Utilities;
 
 namespace GalnetMonitor
 {
+
     /// <summary>
     /// A sample EDDI monitor to watch The Elite: Dangerous RSS feed and generate an event for new items
     /// </summary>
@@ -55,6 +49,11 @@ namespace GalnetMonitor
             return "Galnet monitor";
         }
 
+        public string LocalizedMonitorName()
+        {
+            return EddiGalnetMonitor.Properties.GalnetMonitor.name;
+        }
+
         /// <summary>
         /// The version of the monitor; shows up in EDDI's logs
         /// </summary>
@@ -68,7 +67,7 @@ namespace GalnetMonitor
         /// </summary>
         public string MonitorDescription()
         {
-            return @"Monitor Galnet for new news items and generate a ""Galnet news published"" event when new items are posted";
+            return EddiGalnetMonitor.Properties.GalnetMonitor.desc;
         }
 
         public bool IsRequired()
@@ -114,73 +113,103 @@ namespace GalnetMonitor
 
         private void monitor()
         {
+            const int inGameOnlyStartDelayMilliSecs = 5 * 60 * 1000; // 5 mins
+            const int alwaysOnIntervalMilliSecs = 2 * 60 * 1000; // 2 mins
+            const int inGameOnlyIntervalMilliSecs = 30 * 1000; // 30 secs
+
+            if (!configuration.galnetAlwaysOn)
+            {
+                // Wait at least 5 minutes after starting before polling for new articles, but only if galnetAlwaysOn is false
+                Thread.Sleep(inGameOnlyStartDelayMilliSecs);
+            }
+
             while (running)
             {
-                List<News> newsItems = new List<News>();
-                string firstUid = null;
-                try
+                if (configuration.galnetAlwaysOn)
                 {
-                    string locale = "en";
-                    locales.TryGetValue(configuration.language, out locale);
-                    string url = SOURCE + locale + RESOURCE;
-                    Logging.Debug("Fetching Galnet articles from " + url);
-                    IEnumerable<FeedItem> items = new FeedReader(new GalnetFeedItemNormalizer(), true).RetrieveFeed(url);
-                    if (items != null)
+                    monitorGalnet();
+                    Thread.Sleep(alwaysOnIntervalMilliSecs);
+                }
+                else
+                {
+                    // We'll update the Galnet Monitor only if a journal event has taken place within the specified number of minutes
+                    if ((DateTime.UtcNow - EDDI.Instance.JournalTimeStamp).TotalMinutes < 10)
                     {
-                        foreach (FeedItem item in items)
+                        monitorGalnet();
+                    }
+                    else
+                    {
+                        Logging.Debug("No in-game activity detected, skipping galnet feed update");
+                    }
+                    Thread.Sleep(inGameOnlyIntervalMilliSecs);
+                }
+
+                void monitorGalnet()
+                {
+                    List<News> newsItems = new List<News>();
+                    string firstUid = null;
+                    try
+                    {
+                        string locale = "en";
+                        locales.TryGetValue(configuration.language, out locale);
+                        string url = SOURCE + locale + RESOURCE;
+                        Logging.Debug("Fetching Galnet articles from " + url);
+                        IEnumerable<FeedItem> items = new FeedReader(new GalnetFeedItemNormalizer(), true).RetrieveFeed(url);
+                        if (items != null)
                         {
-                            if (firstUid == null)
+                            foreach (GalnetFeedItemNormalizer.ExtendedFeedItem item in items)
                             {
-                                // Obtain the ID of the first item that we read as a marker
-                                firstUid = item.Id;
-                            }
+                                if (firstUid == null)
+                                {
+                                    // Obtain the ID of the first item that we read as a marker
+                                    firstUid = item.Id;
+                                }
 
-                            if (item.Id == configuration.lastuuid)
-                            {
-                                // Reached the first item we have already seen - go no further
-                                break;
-                            }
+                                if (item.Id == configuration.lastuuid)
+                                {
+                                    // Reached the first item we have already seen - go no further
+                                    break;
+                                }
 
-                            if (isInteresting(item.Title))
-                            {
-                                News newsItem = new News(item.Id, categoryFromTitle(item.Title), item.Title, item.GetContent(), item.PublishDate.DateTime, false);
-                                newsItems.Add(newsItem);
-                                GalnetSqLiteRepository.Instance.SaveNews(newsItem);
+                                if (isInteresting(item.Title))
+                                {
+                                    News newsItem = new News(item.Id, categoryFromTitle(item.Title), item.Title, item.GetContent(), item.PublishDate.DateTime, false);
+                                    newsItems.Add(newsItem);
+                                    GalnetSqLiteRepository.Instance.SaveNews(newsItem);
+                                }
                             }
                         }
                     }
-                }
-                catch (WebException wex)
-                {
-                    Logging.Debug("Exception attempting to obtain galnet feed: ", wex);
-                }
-
-                if (firstUid != configuration.lastuuid)
-                {
-                    Logging.Debug("Updated latest UID to " + firstUid);
-                    configuration.lastuuid = firstUid;
-                    configuration.ToFile();
-                }
-
-                if (newsItems.Count > 0)
-                {
-                    // Spin out event in to a different thread to stop blocking
-                    Thread thread = new Thread(() =>
+                    catch (WebException wex)
                     {
-                        try
-                        {
-                            EDDI.Instance.eventHandler(new GalnetNewsPublishedEvent(DateTime.Now, newsItems));
-                        }
-                        catch (ThreadAbortException)
-                        {
-                            Logging.Debug("Thread aborted");
-                        }
-                    });
-                    thread.IsBackground = true;
-                    thread.Start();
-                }
+                        Logging.Debug("Exception attempting to obtain galnet feed: ", wex);
+                    }
 
-                Thread.Sleep(120000);
+                    if (firstUid != configuration.lastuuid)
+                    {
+                        Logging.Debug("Updated latest UID to " + firstUid);
+                        configuration.lastuuid = firstUid;
+                        configuration.ToFile();
+                    }
+
+                    if (newsItems.Count > 0)
+                    {
+                        // Spin out event in to a different thread to stop blocking
+                        Thread thread = new Thread(() =>
+                        {
+                            try
+                            {
+                                EDDI.Instance.eventHandler(new GalnetNewsPublishedEvent(DateTime.Now, newsItems));
+                            }
+                            catch (ThreadAbortException)
+                            {
+                                Logging.Debug("Thread aborted");
+                            }
+                        });
+                        thread.IsBackground = true;
+                        thread.Start();
+                    }
+                }
             }
         }
 

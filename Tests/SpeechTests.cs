@@ -1,14 +1,9 @@
 ﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
 using EddiVoiceAttackResponder;
 using System.Collections.Generic;
-using System;
 using System.Speech.Synthesis;
 using System.IO;
-using System.Speech.AudioFormat;
 using System.Threading;
-using System.Globalization;
-using System.Collections.ObjectModel;
-using System.Linq;
 using EddiSpeechService;
 using CSCore;
 using CSCore.Codecs.WAV;
@@ -17,12 +12,13 @@ using CSCore.Streams.Effects;
 using EddiDataDefinitions;
 using Utilities;
 
-namespace Tests
+namespace SpeechTests
 {
     [TestClass]
     public class SpeechTests
     {
-        [TestMethod]
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2202:Do not dispose objects multiple times")] // this usage is perfectly correct    
+        [TestMethod, TestCategory("Speech")]
         public void TestPhonemes()
         {
             EventWaitHandle waitHandle = new AutoResetEvent(false);
@@ -55,32 +51,33 @@ namespace Tests
             }
         }
 
-        [TestMethod]
+        [TestMethod, TestCategory("Speech")]
         public void TestSsml1()
         {
             SpeechService.Instance.Say(ShipDefinitions.FromEliteID(128049309), @"<break time=""100ms""/>Fred's ship.", true);
         }
 
-        [TestMethod]
+        [TestMethod, TestCategory("Speech")]
         public void TestSsml2()
         {
             SpeechService.Instance.Say(ShipDefinitions.FromEliteID(128049309), @"<break time=""100ms""/>7 < 10.", true);
         }
 
-        [TestMethod]
+        [TestMethod, TestCategory("Speech")]
         public void TestSsml3()
         {
             SpeechService.Instance.Say(ShipDefinitions.FromEliteID(128049309), @"<break time=""100ms""/>He said ""Foo"".", true);
         }
 
-        [TestMethod]
+        [TestMethod, TestCategory("Speech")]
         public void TestSsml4()
         {
             Logging.Verbose = true;
             SpeechService.Instance.Say(ShipDefinitions.FromEliteID(128049309), @"<break time=""100ms""/>We're on our way to " + Translations.StarSystem("i Bootis") + ".", true);
         }
 
-        [TestMethod]
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2202:Do not dispose objects multiple times")] // this usage is perfecrtly correct    
+        [TestMethod, TestCategory("Speech")]
         public void TestAudio()
         {
             EventWaitHandle waitHandle = new AutoResetEvent(false);
@@ -107,41 +104,49 @@ namespace Tests
             }
         }
 
-        [TestMethod]
+        [TestMethod, TestCategory("Speech")]
         public void TestCallsign()
         {
             SpeechService.Instance.Say(ShipDefinitions.FromEliteID(128049309), Translations.ICAO("GAB-1655"), true);
         }
 
 
-        [TestMethod]
+        [TestMethod, TestCategory("Speech")]
         public void TestSsml()
         {
             SpeechService.Instance.Say(ShipDefinitions.FromEliteID(128049363), "You are travelling to the " + Translations.StarSystem("Hotas") + " system.", true);
         }
 
-        [TestMethod]
+        [TestMethod, TestCategory("Speech")]
         public void TestTranslationVesper()
         {
             Assert.AreEqual(Translations.StarSystem("VESPER-M4"), "Vesper M 4");
         }
 
-        [TestMethod]
+        [TestMethod, TestCategory("Speech")]
         public void TestPowerplay()
         {
-            //SpeechService.Say(ShipDefinitions.ShipFromEliteID(128049363), Translations.Power("Aisling Duval") + ".");
-            //SpeechService.Say(ShipDefinitions.ShipFromEliteID(128049363), Translations.Power("Archon Delaine") + ".");
-            //SpeechService.Say(ShipDefinitions.ShipFromEliteID(128049363), Translations.Power("Arissa Lavigny-Duval") + ".");
-            //SpeechService.Say(ShipDefinitions.ShipFromEliteID(128049363), Translations.Power("Denton Patreus") + ".");
-            //SpeechService.Say(ShipDefinitions.ShipFromEliteID(128049363), Translations.Power("Edmund Mahon") + ".");
-            //SpeechService.Say(ShipDefinitions.ShipFromEliteID(128049363), Translations.Power("Felicia Winters") + ".");
-            //SpeechService.Say(ShipDefinitions.ShipFromEliteID(128049363), Translations.Power("Pranav Antal") + ".");
-            //SpeechService.Say(ShipDefinitions.ShipFromEliteID(128049363), Translations.Power("Zachary Hudson") + ".");
-            //SpeechService.Say(ShipDefinitions.ShipFromEliteID(128049363), Translations.Power("Zemina Torval") + ".");
-            SpeechService.Instance.Say(ShipDefinitions.FromEliteID(128049363), Translations.Power("Li Yong-Rui") + ".", true);
+            var ship = ShipDefinitions.FromEliteID(128049363);
+            var speaker = SpeechService.Instance;
+            string[] powerNames = {
+                "Aisling Duval",
+                "Archon Delaine",
+                "Arissa Lavigny-Duval",
+                "Denton Patreus",
+                "Edmund Mahon",
+                "Felicia Winters",
+                "Pranav Antal",
+                "Zachary Hudson",
+                "Zemina Torval",
+                "Li Yong-Rui"
+            };
+            foreach(string powerName in powerNames)
+            {
+                speaker.Say(ship, Translations.Power(powerName) + ".", true);
+            }
         }
 
-        [TestMethod]
+        [TestMethod, TestCategory("Speech")]
         public void TestExtendedSource()
         {
             EventWaitHandle waitHandle = new AutoResetEvent(false);
@@ -167,10 +172,11 @@ namespace Tests
             }
         }
 
-        [TestMethod]
+        [TestMethod, TestCategory("Speech")]
         public void TestDamage()
         {
             Ship ship = ShipDefinitions.FromEliteID(128049363);
+            var origHealth = ship.health;
             ship.health = 100;
             SpeechService.Instance.Say(ship, "Systems fully operational.", true);
             ship.health = 80;
@@ -183,20 +189,18 @@ namespace Tests
             SpeechService.Instance.Say(ship, "Systems at 20%.", true);
             ship.health = 0;
             SpeechService.Instance.Say(ship, "Systems critical.", true);
+            ship.health = origHealth;
         }
 
-        [TestMethod]
+        [TestMethod, TestCategory("Speech")]
         public void TestVariants()
         {
             SpeechService.Instance.Say(ShipDefinitions.FromEliteID(128049309), "Welcome to your Vulture.  Weapons online.", true);
-            //SpeechService.Instance.Transmit(ShipDefinitions.FromEliteID(128049309), "Vulture x-ray whiskey tango seven one seven six requesting docking.", true);
             SpeechService.Instance.Say(ShipDefinitions.FromEliteID(128049339), "Welcome to your Python.  Scanning at full range.", true);
-            //SpeechService.Instance.Transmit(ShipDefinitions.FromEliteID(128049339), "Python victor oscar Pappa fife tree fawer niner requesting docking.", true);
             SpeechService.Instance.Say(ShipDefinitions.FromEliteID(128049363), "Welcome to your Anaconda.  All systems operational.", true);
-            //SpeechService.Instance.Transmit(ShipDefinitions.FromEliteID(128049363), "Anaconda charlie november delta one niner eight fawer requesting docking.", true);
         }
 
-        [TestMethod]
+        [TestMethod, TestCategory("Speech")]
         public void TestChorus()
         {
             SpeechService.Instance.Speak("Chorus level 0", null, 0, 0, 0, 0, 0, true);
@@ -207,15 +211,13 @@ namespace Tests
             SpeechService.Instance.Speak("Chorus level 100", null, 0, 0, 100, 0, 0, true);
         }
 
-        [TestMethod]
+        [TestMethod, TestCategory("Speech")]
         public void TestSendAndReceive()
         {
-            SpeechService.Instance.Say(ShipDefinitions.FromEliteID(128049339), "Issuing docking request.  Please stand by.", true);
-            //SpeechService.Instance.Transmit(ShipDefinitions.FromEliteID(128049339), "Anaconda golf foxtrot lima one niner six eight requesting docking.", true, true);
-            //SpeechService.Instance.Receive(ShipDefinitions.FromEliteID(128049339), "Roger golf foxtrot lima one niner six eight docking request received", true, true);
+            SpeechService.Instance.Say(ShipDefinitions.FromEliteID(128049339), "Anaconda golf foxtrot lima one niner six eight returning from orbit.", true, 3, null, true);
         }
 
-        [TestMethod]
+        [TestMethod, TestCategory("Speech")]
         public void TestPathingString1()
         {
             string pathingString = @"There are [4;5] lights";
@@ -234,7 +236,7 @@ namespace Tests
             Assert.IsTrue(pathingResults.SetEquals(new HashSet<string>(pathingOptions)));
         }
 
-        [TestMethod]
+        [TestMethod, TestCategory("Speech")]
         public void TestPathingString2()
         {
             string pathingString = @"There are [4;5;] lights";
@@ -254,7 +256,7 @@ namespace Tests
             Assert.IsTrue(pathingResults.SetEquals(new HashSet<string>(pathingOptions)));
         }
 
-        [TestMethod]
+        [TestMethod, TestCategory("Speech")]
         public void TestPathingString3()
         {
             string pathingString = @"There [are;might be;could be] [4;5;] lights;It's dark in here;";
@@ -282,7 +284,7 @@ namespace Tests
             Assert.IsTrue(pathingResults.SetEquals(new HashSet<string>(pathingOptions)));
         }
 
-        [TestMethod]
+        [TestMethod, TestCategory("Speech")]
         public void TestPathingString4()
         {
             string pathingString = @";;;;;;Seven;;;";
@@ -305,7 +307,7 @@ namespace Tests
             Assert.IsTrue(sevenCount < 1500);
         }
 
-        [TestMethod]
+        [TestMethod, TestCategory("Speech")]
         public void TestPathingString5()
         {
             string pathingString = @"You leave me [no choice].";
@@ -323,7 +325,7 @@ namespace Tests
             Assert.IsTrue(pathingResults.SetEquals(new HashSet<string>(pathingOptions)));
         }
 
-        [TestMethod]
+        [TestMethod, TestCategory("Speech")]
         public void TestPathingString6()
         {
             string pathingString = @"[There can be only one.]";
@@ -341,7 +343,7 @@ namespace Tests
             Assert.IsTrue(pathingResults.SetEquals(new HashSet<string>(pathingOptions)));
         }
 
-        [TestMethod]
+        [TestMethod, TestCategory("Speech")]
         public void TestPathingString7()
         {
             string pathingString = @"[{TXT:Ship model} {TXT:Ship callsign (spoken)};This is {TXT:Ship model} {TXT:Ship callsign (spoken)}] [requesting docking permission;requesting docking clearance;requesting permission to dock;requesting clearance to dock].";
@@ -366,7 +368,8 @@ namespace Tests
             Assert.IsTrue(pathingResults.SetEquals(new HashSet<string>(pathingOptions)));
         }
 
-        [TestMethod]
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2202:Do not dispose objects multiple times")] // this usage is perfecrtly correct    
+        [TestMethod, TestCategory("Speech")]
         public void TestSpeech()
         {
             SpeechSynthesizer synth = new SpeechSynthesizer();
@@ -388,7 +391,8 @@ namespace Tests
             }
         }
 
-        [TestMethod]
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2202:Do not dispose objects multiple times")] // this usage is perfecrtly correct    
+        [TestMethod, TestCategory("Speech")]
         public void TestDropOff()
         {
             SpeechSynthesizer synth = new SpeechSynthesizer();
@@ -410,81 +414,81 @@ namespace Tests
             SpeechService.Instance.Speak("Testing drop-off.", null, 50, 1, 30, 40, 0, true);
         }
 
-        [TestMethod]
+        [TestMethod, TestCategory("Speech")]
         public void TestSpeechServicePhonemes()
         {
             Logging.Verbose = true;
             SpeechService.Instance.Speak("You are  docked at Jameson Memorial  in the <phoneme alphabet=\"ipa\" ph=\"ʃɪnˈrɑːrtə\">Shinrarta</phoneme> <phoneme alphabet=\"ipa\" ph=\"ˈdezɦrə\">Dezhra</phoneme> system.", null, 50, 1, 30, 40, 0, true);
         }
 
-        [TestMethod]
+        [TestMethod, TestCategory("Speech")]
         public void TestSectorTranslations()
         {
             Assert.AreEqual("Swoiwns N Y dash B a 95 dash 0", Translations.StarSystem("Swoiwns NY-B a95-0"));
             Assert.AreEqual("P P M 5 2 8 7", Translations.StarSystem("PPM 5287"));
         }
 
-        [TestMethod]
+        [TestMethod, TestCategory("Speech")]
         public void TestSpeechHumanize1()
         {
             Assert.AreEqual("on the way to 12 and a half thousand", Translations.Humanize(12345));
         }
 
-        [TestMethod]
+        [TestMethod, TestCategory("Speech")]
         public void TestSpeechHumanize2()
         {
             Assert.AreEqual(null, Translations.Humanize(null));
         }
 
-        [TestMethod]
+        [TestMethod, TestCategory("Speech")]
         public void TestSpeechHumanize3()
         {
             Assert.AreEqual("zero", Translations.Humanize(0));
         }
 
-        [TestMethod]
+        [TestMethod, TestCategory("Speech")]
         public void TestSpeechHumanize4()
         {
             Assert.AreEqual("0.16", Translations.Humanize(0.15555555M));
         }
 
-        [TestMethod]
+        [TestMethod, TestCategory("Speech")]
         public void TestSpeechHumanize5()
         {
             Assert.AreEqual("0.016", Translations.Humanize(0.015555555M));
         }
 
-        [TestMethod]
+        [TestMethod, TestCategory("Speech")]
         public void TestSpeechHumanize6()
         {
             Assert.AreEqual("0.0016", Translations.Humanize(0.0015555555M));
         }
 
-        [TestMethod]
+        [TestMethod, TestCategory("Speech")]
         public void TestSpeechHumanize7()
         {
             Assert.AreEqual("51 million", Translations.Humanize(51000000));
         }
 
-        [TestMethod]
+        [TestMethod, TestCategory("Speech")]
         public void TestSpeechHumanize8()
         {
             Assert.AreEqual("just over 51 million", Translations.Humanize(51000001));
         }
 
-        [TestMethod]
+        [TestMethod, TestCategory("Speech")]
         public void TestSpeechHumanize9()
         {
             Assert.AreEqual("10 thousand", Translations.Humanize(10000));
         }
 
-        [TestMethod]
+        [TestMethod, TestCategory("Speech")]
         public void TestSpeechHumanize10()
         {
             Assert.AreEqual("100 thousand", Translations.Humanize(100000));
         }
 
-        [TestMethod]
+        [TestMethod, TestCategory("Speech")]
         public void TestSpeechServiceQueue()
         {
             Thread thread1 = new Thread(() => SpeechService.Instance.Say(null, "Hello.", true));
@@ -500,13 +504,13 @@ namespace Tests
             thread2.Join();
         }
 
-        [TestMethod]
+        [TestMethod, TestCategory("Speech")]
         public void TestSpeechServicePhonetics1()
         {
             SpeechService.Instance.Say(null, @"Destination confirmed. your <phoneme alphabet=""ipa"" ph=""ˈkəʊbrə"">cobra</phoneme> <phoneme alphabet=""ipa"" ph=""mɑːk"">Mk.</phoneme> <phoneme alphabet=""ipa"" ph=""θriː"">III</phoneme> is travelling to the L T T 1 7 8 6 8 system. This is your first visit to this system. L T T 1 7 8 6 8 is a Federation Corporate with a population of Over 65 thousand souls, aligned to <phoneme alphabet=""ipa"" ph=""fəˈlɪʃɪə"">Felicia</phoneme> <phoneme alphabet=""ipa"" ph=""ˈwɪntəs"">Winters</phoneme>. Kungurutii Gold Power Org is the immediate faction. There are 2 orbital stations and a single planetary station in this system.", true);
         }
 
-        [TestMethod]
+        [TestMethod, TestCategory("Speech")]
         public void TestSpeechServiceStress()
         {
             Logging.Verbose = true;
@@ -518,11 +522,18 @@ namespace Tests
             Thread.Sleep(5000);
         }
 
-        [TestMethod]
+        [TestMethod, TestCategory("Speech")]
         public void TestSpeechServiceEscaping()
         {
             Logging.Verbose = true;
             SpeechService.Instance.Say(null, "<phoneme alphabet=\"ipa\" ph=\"ʃɪnˈrɑːrtə\">Shinrarta</phoneme> <phoneme alphabet=\"ipa\" ph=\"ˈdezɦrə\">Dezhra</phoneme> & Co's shop", true);
+        }
+
+        [TestMethod, TestCategory("Speech")]
+        public void TestSpeechServiceRadio()
+        {
+            Logging.Verbose = true;
+            SpeechService.Instance.Say(null, "Your python has touched down.", true, 3, null, true);
         }
     }
 }

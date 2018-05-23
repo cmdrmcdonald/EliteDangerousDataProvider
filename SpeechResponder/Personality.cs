@@ -5,9 +5,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using System.Text;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
 using Utilities;
 
 namespace EddiSpeechResponder
@@ -32,7 +30,11 @@ namespace EddiSpeechResponder
         [JsonIgnore]
         private string dataPath;
 
-        private static readonly string DEFAULT_PATH = new DirectoryInfo(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)).FullName + @"\eddi.json";
+        [JsonIgnore]
+        static readonly object fileLock = new object();
+
+        private static readonly string DEFAULT_PATH = new DirectoryInfo(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)).FullName + @"\" + Properties.SpeechResponder.default_personality_script_filename;
+        private static readonly string DEFAULT_USER_PATH = Constants.DATA_DIR + @"\personalities\" + Properties.SpeechResponder.default_personality_script_filename;
 
         public Personality(string name, string description, Dictionary<string, Script> scripts)
         {
@@ -98,14 +100,14 @@ namespace EddiSpeechResponder
         }
 
         /// <summary>
-        /// Obtain personality from a file.  If the file name is not supplied the the default
-        /// path of Constants.Data_DIR\personalities\eddi.json is used
+        /// Obtain personality from a file.
         /// </summary>
         public static Personality FromFile(string filename = null, bool isDefault = false)
         {
             if (filename == null)
             {
-                filename = Constants.DATA_DIR + @"\personalities\eddi.json";
+                filename = DEFAULT_USER_PATH;
+                isDefault = true;
             }
 
             Personality personality = null;
@@ -133,8 +135,7 @@ namespace EddiSpeechResponder
         }
 
         /// <summary>
-        /// Write personality to a file.  If the file name is not supplied the the default
-        /// path of Constants.Data_DIR\personalities\eddi.json is used
+        /// Write personality to a file.
         /// </summary>
         public void ToFile(string filename = null)
         {
@@ -144,13 +145,16 @@ namespace EddiSpeechResponder
             }
             if (filename == null)
             {
-                filename = Constants.DATA_DIR + @"\personalities\eddi.json";
+                filename = DEFAULT_USER_PATH;
             }
 
             if (filename != DEFAULT_PATH)
             {
                 string json = JsonConvert.SerializeObject(this, Formatting.Indented);
-                Files.Write(filename, json);
+                lock (fileLock)
+                {
+                    Files.Write(filename, json);
+                }
             }
         }
 
@@ -197,6 +201,7 @@ namespace EddiSpeechResponder
 
             Dictionary<string, Script> fixedScripts = new Dictionary<string, Script>();
             // Ensure that every required event is present
+            List<string> missingScripts = new List<string>();
             foreach (KeyValuePair<string, string> defaultEvent in Events.DESCRIPTIONS)
             {
                 personality.Scripts.TryGetValue(defaultEvent.Key, out Script script);
@@ -205,7 +210,7 @@ namespace EddiSpeechResponder
                 script = UpgradeScript(script, defaultScript);
                 if (script == null)
                 {
-                    Logging.Report("Failed to find script for " + defaultEvent.Key);
+                    missingScripts.Add(defaultEvent.Key);
                 }
                 else
                 {
@@ -224,14 +229,50 @@ namespace EddiSpeechResponder
             }
             if (!personality.IsDefault)
             {
-                // Also add any secondary scripts in the default personality that aren't present in the list
-                foreach (KeyValuePair<string, Script> kv in defaultPersonality.Scripts)
+                // Remove deprecated scripts from the list
+                List<string> scriptHolder = new List<string>();
+                foreach (KeyValuePair<string, Script> kv in fixedScripts)
                 {
-                    if (!fixedScripts.ContainsKey(kv.Key))
+                    if (kv.Key == "Jumping") // Replaced by "FSD engaged" script
                     {
-                        fixedScripts.Add(kv.Key, kv.Value);
+                        scriptHolder.Add(kv.Key);
+                    }
+                    else if (kv.Value.Name == "Crew member role change") // This name is mismatched to the key (should be "changed"), 
+                        // so EDDI couldn't match the script name to the .json key correctly. The default script has been corrected.
+                    {
+                        scriptHolder.Add(kv.Key);
+                    }
+                    else if (kv.Value.Name == "Ship low fuel") // Accidental duplicate. The real event is called 'Low fuel'
+                    {
+                        scriptHolder.Add(kv.Key);
                     }
                 }
+                foreach (string script in scriptHolder)
+                {
+                    fixedScripts.Remove(script);
+                }
+                // Also add any secondary scripts in the default personality that aren't present in the list
+                if (defaultPersonality?.Scripts != null )
+                {
+                    foreach (KeyValuePair<string, Script> kv in defaultPersonality?.Scripts)
+                    {
+                        if (!fixedScripts.ContainsKey(kv.Key))
+                        {
+                            fixedScripts.Add(kv.Key, kv.Value);
+                        }
+                    }
+                }
+            }
+
+            // Report missing scripts, except those we have specifically named
+            /// `Belt scanned` is a useless event, only exists so that the count on nav beacon scans comes out right
+            /// `Jumping` is a deprecated event
+            /// `Status` is an event which shares status updates with monitors / responders but is not intended to be user facing
+            string[] ignoredEventKeys = { "Belt scanned", "Jumping", "Status" };
+            missingScripts.RemoveAll(t => t == "Belt scanned" || t == "Jumping" || t == "Status");
+            if (missingScripts.Count > 0)
+            {
+                Logging.Info("Failed to find scripts" + string.Join(";", missingScripts));
             }
 
             // Re-order the scripts by name

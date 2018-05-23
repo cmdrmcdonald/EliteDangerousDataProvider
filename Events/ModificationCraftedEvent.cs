@@ -1,10 +1,6 @@
 ﻿using EddiDataDefinitions;
-using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace EddiEvents
 {
@@ -13,7 +9,6 @@ namespace EddiEvents
         public const string NAME = "Modification crafted";
         public const string DESCRIPTION = "Triggered when you craft a modification to a module";
         public const string SAMPLE = @"{ ""timestamp"":""2016-11-14T18:49:29Z"", ""event"":""EngineerCraft"", ""Engineer"":""Broo Tarquin"", ""Blueprint"":""Weapon_RapidFire"", ""Level"":5, ""Ingredients"":{""powertransferconduits"":1, ""precipitatedalloys"":1, ""configurablecomponents"":1, ""technetium"":1 } }";
-        //public const string SAMPLE = @"{ ""timestamp"":""2016-11-14T18:49:29Z"", ""event"":""EngineerCraft"", ""Engineer"":""Broo Tarquin"", ""Blueprint"":""Weapon_RapidFire"", ""Level"":5, ""Ingredients"":[{""Name"":""disruptedwakeechoes"", ""Count"":3 }, {""Name"":""chemicalprocessors"", ""Count"":2 }, {""Name"":""arsenic"", ""Count"":2} ] }";
         public static Dictionary<string, string> VARIABLES = new Dictionary<string, string>();
 
         static ModificationCraftedEvent()
@@ -42,18 +37,6 @@ namespace EddiEvents
             this.level = level;
             this.materials = materials;
             this.commodities = commodities;
-        }
-    }
-
-    public class CommodityAmount
-    {
-        public string commodity { get; private set; }
-        public int amount { get; private set; }
-
-        public CommodityAmount(Commodity commodity, int amount)
-        {
-            this.commodity = commodity.name;
-            this.amount = amount;
         }
     }
 }

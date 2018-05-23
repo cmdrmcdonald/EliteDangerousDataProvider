@@ -2,9 +2,6 @@
 using EddiEvents;
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace EddiEddpMonitor
 {
@@ -13,7 +10,7 @@ namespace EddiEddpMonitor
         public const string NAME = "System state changed";
         public const string DESCRIPTION = "Triggered when there is a change in the state of a watched system";
         public static Dictionary<string, string> VARIABLES = new Dictionary<string, string>();
-        public static SystemStateChangedEvent SAMPLE = new SystemStateChangedEvent(DateTime.Now, "home", "Shinrarta Dezhra", State.CivilUnrest.name, State.CivilWar.name);
+        public static SystemStateChangedEvent SAMPLE = new SystemStateChangedEvent(DateTime.Now, "home", "Shinrarta Dezhra", SystemState.CivilUnrest, SystemState.CivilWar);
 
         static SystemStateChangedEvent()
         {
@@ -27,16 +24,20 @@ namespace EddiEddpMonitor
 
         public string system { get; private set; }
 
-        public string oldstate { get; private set; }
+        public SystemState oldSystemState { get; private set; }
+        public SystemState newSystemState { get; private set; }
 
-        public string newstate { get; private set; }
+        [Obsolete("Please use oldSystemState instead")]
+        public string oldstate => (oldSystemState ?? SystemState.None).localizedName;
+        [Obsolete("Please use newSystemState instead")]
+        public string newstate => (newSystemState ?? SystemState.None).localizedName;
 
-        public SystemStateChangedEvent(DateTime timestamp, string match, string system, string oldstate, string newstate) : base(timestamp, NAME)
+        public SystemStateChangedEvent(DateTime timestamp, string match, string system, SystemState oldSystemState, SystemState newSystemState) : base(timestamp, NAME)
         {
             this.match = match;
             this.system = system;
-            this.oldstate = oldstate;
-            this.newstate = newstate;
+            this.oldSystemState = oldSystemState;
+            this.newSystemState = newSystemState;
         }
     }
 }

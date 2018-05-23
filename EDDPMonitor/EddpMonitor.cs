@@ -1,21 +1,14 @@
 ﻿using Eddi;
-using EddiCompanionAppService;
 using EddiDataDefinitions;
 using EddiDataProviderService;
+using EddiEddpMonitor;
 using EddiEvents;
 using NetMQ;
 using NetMQ.Sockets;
-using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
-using System.IO;
-using System.IO.Compression;
-using System.Linq;
-using System.Text;
 using System.Threading;
-using System.Threading.Tasks;
-using System.Xml.Linq;
 using Utilities;
 
 namespace EddiEddpMonitor
@@ -38,6 +31,11 @@ namespace EddiEddpMonitor
             return "EDDP monitor";
         }
 
+        public string LocalizedMonitorName()
+        {
+            return Properties.EddpResources.name;
+        }
+
         /// <summary>
         /// The version of the monitor; shows up in EDDI's logs
         /// </summary>
@@ -51,7 +49,7 @@ namespace EddiEddpMonitor
         /// </summary>
         public string MonitorDescription()
         {
-            return @"Monitor EDDP for changes in system control and state, and generate events that match the watch list.";
+            return Properties.EddpResources.desc;
         }
 
         public bool IsRequired()
@@ -156,8 +154,8 @@ namespace EddiEddpMonitor
             string oldfaction = (string)json["oldfaction"];
             string newfaction = (string)json["newfaction"];
 
-            string oldstate = (string)json["oldstate"];
-            string newstate = (string)json["newstate"];
+            SystemState oldstate = SystemState.FromName((string)json["oldstate"]);
+            SystemState newstate = SystemState.FromName((string)json["newstate"]);
 
             string oldallegiance = (string)json["oldallegiance"];
             string newallegiance = (string)json["newallegiance"];
@@ -186,7 +184,7 @@ namespace EddiEddpMonitor
                     }
                     if (newstate != null)
                     {
-                        system.state = newstate;
+                        system.systemState = newstate;
                     }
                     if (newallegiance != null)
                     {
@@ -229,7 +227,7 @@ namespace EddiEddpMonitor
         /// <summary>
         /// Find a matching watch for a given set of parameters
         /// </summary>
-        private string match(string systemname, string stationname, decimal x, decimal y, decimal z, string oldfaction, string newfaction, string oldstate, string newstate)
+        private string match(string systemname, string stationname, decimal x, decimal y, decimal z, string oldfaction, string newfaction, SystemState oldstate, SystemState newstate)
         {
             foreach (Watch watch in configuration.watches)
             {
@@ -253,27 +251,31 @@ namespace EddiEddpMonitor
                     continue;
                 }
 
-                if (watch.MaxDistanceFromShip != null)
+                if (EDDI.Instance.CurrentStarSystem != null)
                 {
-                    // Calculate the distance of the system from the ship
-                    decimal distance = (decimal)Math.Sqrt(Math.Pow((double)(EDDI.Instance.CurrentStarSystem.x - x), 2)
-                                                 + Math.Pow((double)(EDDI.Instance.CurrentStarSystem.y - y), 2)
-                                                 + Math.Pow((double)(EDDI.Instance.CurrentStarSystem.z - z), 2));
-                    if (distance > watch.MaxDistanceFromShip)
-                    {
-                        continue;
-                    }
-                }
 
-                if (watch.MaxDistanceFromHome != null)
-                {
-                    // Calculate the distance of the system from the home system
-                    decimal distance = (decimal)Math.Sqrt(Math.Pow((double)(EDDI.Instance.HomeStarSystem.x - x), 2)
-                                                 + Math.Pow((double)(EDDI.Instance.HomeStarSystem.y - y), 2)
-                                                 + Math.Pow((double)(EDDI.Instance.HomeStarSystem.z - z), 2));
-                    if (distance > watch.MaxDistanceFromHome)
+                    if (watch.MaxDistanceFromShip != null)
                     {
-                        continue;
+                        // Calculate the distance of the system from the ship
+                        decimal distance = (decimal)Math.Sqrt(Math.Pow((double)(EDDI.Instance.CurrentStarSystem.x - x), 2)
+                                                     + Math.Pow((double)(EDDI.Instance.CurrentStarSystem.y - y), 2)
+                                                     + Math.Pow((double)(EDDI.Instance.CurrentStarSystem.z - z), 2));
+                        if (distance > watch.MaxDistanceFromShip)
+                        {
+                            continue;
+                        }
+                    }
+
+                    if (watch.MaxDistanceFromHome != null)
+                    {
+                        // Calculate the distance of the system from the home system
+                        decimal distance = (decimal)Math.Sqrt(Math.Pow((double)(EDDI.Instance.HomeStarSystem.x - x), 2)
+                                                     + Math.Pow((double)(EDDI.Instance.HomeStarSystem.y - y), 2)
+                                                     + Math.Pow((double)(EDDI.Instance.HomeStarSystem.z - z), 2));
+                        if (distance > watch.MaxDistanceFromHome)
+                        {
+                            continue;
+                        }
                     }
                 }
 

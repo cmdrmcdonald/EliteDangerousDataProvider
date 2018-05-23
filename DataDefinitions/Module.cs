@@ -1,11 +1,15 @@
-﻿using System.Collections.Generic;
-
-namespace EddiDataDefinitions
+﻿namespace EddiDataDefinitions
 {
-    public class Module
+    public partial class Module : ResourceBasedLocalizedEDName<Module>
     {
+        public enum ModuleMount
+        {
+            Fixed,
+            Gimballed,
+            Turreted
+        }
+
         // Definition of the module
-        public string name { get; set; }
         public int @class { get; set; }
         public string grade { get; set; }
         public long value { get; set; } // The undiscounted value
@@ -25,17 +29,22 @@ namespace EddiDataDefinitions
         // Admin
         // The ID in Elite: Dangerous' database
         public long EDID { get; set; }
-        // The name in Elite: Dangerous' database
-        public string EDName { get; set; }
         // The ID in eddb.io
         public long EDDBID { get; set; }
 
-        public Module() { }
+        // TEMP
+        public string EDName { get => edname; }
 
-        public Module(Module Module)
+        public string LocalizedMountName()
         {
-            this.EDName = Module.EDName;
-            this.name = Module.name;
+            return (mount != null) ? Properties.Modules.ResourceManager.GetString(mount.ToString()) : "";
+        }
+
+        public Module() : base("", "")
+        {}
+
+        public Module(Module Module) : base(Module.edname, Module.basename)
+        {
             this.@class = Module.@class;
             this.grade = Module.grade;
             this.value = Module.value;
@@ -48,39 +57,35 @@ namespace EddiDataDefinitions
             this.modified = Module.modified;
         }
 
-        public Module(long EDID, string EDName, long EDDBID, string Name, int Class, string Grade, long Value)
+        public Module(long EDID, string edname, long EDDBID, string basename, int Class, string Grade, long Value) : base(edname, basename)
         {
             this.EDID = EDID;
-            this.EDName = EDName;
             this.EDDBID = EDDBID;
-            this.name = Name;
             this.@class = Class;
             this.grade = Grade;
             this.value = Value;
             this.modified = false;
+            ModulesByEliteID[EDID] = this;
         }
 
         // Module definition for a bulkhead - requires ship ID
-        public Module(long EDID, string EDName, long EDDBID, string Name, int Class, string Grade, long Value, int ShipId)
+        public Module(long EDID, string edname, long EDDBID, string basename, int Class, string Grade, long Value, int ShipId) : base(edname, basename)
         {
             this.EDID = EDID;
-            this.EDName = EDName;
             this.EDDBID = EDDBID;
-            this.name = Name;
             this.@class = Class;
             this.grade = Grade;
             this.value = Value;
             this.ShipId = ShipId;
             this.modified = false;
+            ModulesByEliteID[EDID] = this;
         }
 
         // Module definition for a weapon - requires mount and optional ammo
-        public Module(long EDID, string EDName, long EDDBID, string Name, int Class, string Grade, long Value, ModuleMount Mount, int? AmmoClipCapacity = null, int? AmmoHopperCapacity = null)
+        public Module(long EDID, string edname, long EDDBID, string basename, int Class, string Grade, long Value, ModuleMount Mount, int? AmmoClipCapacity = null, int? AmmoHopperCapacity = null) : base(edname, basename)
         {
             this.EDID = EDID;
-            this.EDName = EDName;
             this.EDDBID = EDDBID;
-            this.name = Name;
             this.@class = Class;
             this.grade = Grade;
             this.value = Value;
@@ -88,14 +93,13 @@ namespace EddiDataDefinitions
             this.clipcapacity = AmmoClipCapacity;
             this.hoppercapacity = AmmoHopperCapacity;
             this.modified = false;
+            ModulesByEliteID[EDID] = this;
         }
 
-        /// <summary>The mount of a weapons module</summary>
-        public enum ModuleMount
+        public bool IsPowerPlay()
         {
-            Fixed,
-            Gimballed,
-            Turreted
+            return PowerPlayModules.Contains(this.edname);
         }
+
     }
 }

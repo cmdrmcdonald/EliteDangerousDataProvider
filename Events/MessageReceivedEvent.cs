@@ -1,9 +1,6 @@
 ﻿using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace EddiEvents
 {
@@ -11,15 +8,15 @@ namespace EddiEvents
     {
         public const string NAME = "Message received";
         public const string DESCRIPTION = "Triggered when you receive a message";
-        public const string SAMPLE = "{\"timestamp\":\"2016-06-10T14:32:03Z\",\"event\":\"ReceiveText\",\"From\":\"$cmdr_decorate:#name=HRC1;\",\"Message\":\"Hello\"}";
+        public const string SAMPLE = "{\"timestamp\":\"2017-10-01T18:51:52Z\", \"event\":\"ReceiveText\", \"From\":\"HRC1\", \"Message\":\"Hello\", \"Channel\":\"player\"}";
         public static Dictionary<string, string> VARIABLES = new Dictionary<string, string>();
 
         static MessageReceivedEvent()
         {
-            VARIABLES.Add("from", "The name of the pilot who sent the message");
+            VARIABLES.Add("from", "The name of the source who sent the message");
             VARIABLES.Add("player", "True if the sender is a player");
-            VARIABLES.Add("source", "The source of the transmission (NPC, Police, Station, Crew member, Commander)");
-            VARIABLES.Add("channel", "The channel in which the message came (direct, local, wing)");
+            VARIABLES.Add("source", "The source of the transmission");
+            VARIABLES.Add("channel", "The channel in which the message came (e.g. direct, local, multicrew, wing, npc)");
             VARIABLES.Add("message", "The message");
         }
 

@@ -1,6 +1,7 @@
 ﻿using EddiDataDefinitions;
 using Newtonsoft.Json;
 using System;
+using System.Collections.Generic;
 using System.Data.SQLite;
 using System.IO;
 using Utilities;
@@ -9,17 +10,17 @@ namespace EddiDataProviderService
 {
     public class StarSystemSqLiteRepository : SqLiteBaseRepository, StarSystemRepository
     {
-        private static string CREATE_SQL = @"
+        private const string CREATE_SQL = @"
                     CREATE TABLE IF NOT EXISTS starsystems(
                      name TEXT NOT NULL
                      ,totalvisits INT NOT NULL
                      ,lastvisit DATETIME NOT NULL
                      ,starsystem TEXT NOT NULL
                      ,starsystemlastupdated DATETIME NOT NULL)";
-        private static string CREATE_INDEX_SQL = @"
+        private const string CREATE_INDEX_SQL = @"
                     CREATE INDEX IF NOT EXISTS starsystems_idx_1
                     ON starsystems(name)";
-        private static string INSERT_SQL = @"
+        private const string INSERT_SQL = @"
                     INSERT INTO starsystems(
                        name
                      , totalvisits
@@ -27,17 +28,17 @@ namespace EddiDataProviderService
                      , starsystem
                      , starsystemlastupdated)
                     VALUES(@name, @totalvisits, @lastvisit, @starsystem, @starsystemlastupdated)";
-        private static string UPDATE_SQL = @"
+        private const string UPDATE_SQL = @"
                     UPDATE starsystems
                     SET totalvisits = @totalvisits
                        ,lastvisit = @lastvisit
                        ,starsystem = @starsystem
                        ,starsystemlastupdated = @starsystemlastupdated
                     WHERE name = @name";
-        private static string DELETE_SQL = @"
+        private const string DELETE_SQL = @"
                     DELETE FROM starsystems
                     WHERE name = @name";
-        private static string SELECT_BY_NAME_SQL = @"
+        private const string SELECT_BY_NAME_SQL = @"
                     SELECT totalvisits,
                            lastvisit,
                            starsystem,
@@ -45,8 +46,8 @@ namespace EddiDataProviderService
                            comment
                     FROM starsystems
                     WHERE name = @name";
-        private static string TABLE_SQL = @"PRAGMA table_info(starsystems)";
-        private static string ALTER_ADD_COMMENT_SQL = @"ALTER TABLE starsystems ADD COLUMN comment TEXT";
+        private const string TABLE_SQL = @"PRAGMA table_info(starsystems)";
+        private const string ALTER_ADD_COMMENT_SQL = @"ALTER TABLE starsystems ADD COLUMN comment TEXT";
 
         private static StarSystemSqLiteRepository instance;
 
@@ -75,7 +76,7 @@ namespace EddiDataProviderService
             }
         }
 
-        private static readonly object insertLock = new object();
+        private static readonly object editLock = new object();
 
         public StarSystem GetOrCreateStarSystem(string name, bool fetchIfMissing = true)
         {
@@ -173,7 +174,6 @@ namespace EddiDataProviderService
                             }
                         }
                     }
-                    con.Close();
                 }
                 if (needToUpdate)
                 {
@@ -182,7 +182,16 @@ namespace EddiDataProviderService
             }
             catch (Exception ex)
             {
-                Logging.Warn("Problem obtaining data: " + ex);
+                Logging.Warn("Problem reading data from database, attempting to re-obtain from source: " + ex);
+                try
+                {
+                    result = DataProviderService.GetSystemData(name, null, null, null);
+                }
+                catch (Exception ex2)
+                {
+                    Logging.Warn("Problem obtaining data from source: " + ex2);
+                    result = null;
+                }
             }
 
             return result;
@@ -201,6 +210,63 @@ namespace EddiDataProviderService
             }
         }
 
+        public void SaveStarSystems(List<StarSystem> starSystems)
+        {
+            using (var con = SimpleDbConnection())
+            {
+                con.Open();
+                using (var cmd = new SQLiteCommand(con))
+                {
+                    foreach (StarSystem system in starSystems)
+                    {
+                        if (GetStarSystem(system.name, false) == null)
+                        {
+                            lock (editLock)
+                            {
+                                // Delete the system
+                                cmd.CommandText = DELETE_SQL;
+                                cmd.Prepare();
+                                cmd.Parameters.AddWithValue("@name", system.name);
+                                cmd.ExecuteNonQuery();
+
+                                // Re-insert the system
+                                Logging.Debug("Creating new starsystem " + system.name);
+                                if (system.lastvisit == null)
+                                {
+                                    // DB constraints don't allow this to be null
+                                    system.lastvisit = DateTime.Now;
+                                }
+
+                                cmd.CommandText = INSERT_SQL;
+                                cmd.Prepare();
+                                cmd.Parameters.AddWithValue("@name", system.name);
+                                cmd.Parameters.AddWithValue("@totalvisits", system.visits);
+                                cmd.Parameters.AddWithValue("@lastvisit", system.lastvisit ?? DateTime.Now);
+                                cmd.Parameters.AddWithValue("@starsystem", JsonConvert.SerializeObject(system));
+                                cmd.Parameters.AddWithValue("@starsystemlastupdated", system.lastupdated);
+                                cmd.ExecuteNonQuery();
+                            }
+                        }
+                        else
+                        {
+                            lock (editLock)
+                            {
+                                // Update the system
+                                cmd.CommandText = UPDATE_SQL;
+                                cmd.Prepare();
+                                cmd.Parameters.AddWithValue("@totalvisits", system.visits);
+                                cmd.Parameters.AddWithValue("@lastvisit", system.lastvisit ?? DateTime.Now);
+                                cmd.Parameters.AddWithValue("@starsystem", JsonConvert.SerializeObject(system));
+                                cmd.Parameters.AddWithValue("@starsystemlastupdated", system.lastupdated);
+                                cmd.Parameters.AddWithValue("@name", system.name);
+                                cmd.ExecuteNonQuery();
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         // Triggered when leaving a starsystem - just update lastvisit
         public void LeaveStarSystem(StarSystem system)
         {
@@ -210,7 +276,7 @@ namespace EddiDataProviderService
 
         private void insertStarSystem(StarSystem system)
         {
-            lock (insertLock)
+            lock (editLock)
             {
                 // Before we insert we attempt to fetch to ensure that we don't have it present
                 StarSystem existingStarSystem = GetStarSystem(system.name, false);
@@ -231,7 +297,6 @@ namespace EddiDataProviderService
                     using (var con = SimpleDbConnection())
                     {
                         con.Open();
-
                         using (var cmd = new SQLiteCommand(con))
                         {
                             cmd.CommandText = INSERT_SQL;
@@ -243,7 +308,6 @@ namespace EddiDataProviderService
                             cmd.Parameters.AddWithValue("@starsystemlastupdated", system.lastupdated);
                             cmd.ExecuteNonQuery();
                         }
-                        con.Close();
                     }
                 }
             }
@@ -254,7 +318,6 @@ namespace EddiDataProviderService
             using (var con = SimpleDbConnection())
             {
                 con.Open();
-
                 using (var cmd = new SQLiteCommand(con))
                 {
                     cmd.CommandText = UPDATE_SQL;
@@ -266,7 +329,6 @@ namespace EddiDataProviderService
                     cmd.Parameters.AddWithValue("@name", system.name);
                     cmd.ExecuteNonQuery();
                 }
-                con.Close();
             }
         }
 
@@ -275,7 +337,6 @@ namespace EddiDataProviderService
             using (var con = SimpleDbConnection())
             {
                 con.Open();
-
                 using (var cmd = new SQLiteCommand(con))
                 {
                     cmd.CommandText = DELETE_SQL;
@@ -283,7 +344,6 @@ namespace EddiDataProviderService
                     cmd.Parameters.AddWithValue("@name", system.name);
                     cmd.ExecuteNonQuery();
                 }
-                con.Close();
             }
         }
 
@@ -292,7 +352,6 @@ namespace EddiDataProviderService
             using (var con = SimpleDbConnection())
             {
                 con.Open();
-
                 using (var cmd = new SQLiteCommand(CREATE_SQL, con))
                 {
                     Logging.Debug("Creating starsystem repository");
@@ -330,8 +389,6 @@ namespace EddiDataProviderService
                         cmd.ExecuteNonQuery();
                     }
                 }
-
-                con.Close();
             }
             Logging.Debug("Created starsystem repository");
         }
