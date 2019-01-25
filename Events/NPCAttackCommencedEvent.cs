@@ -1,10 +1,5 @@
-﻿using EddiDataDefinitions;
-using Newtonsoft.Json;
-using System;
+﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace EddiEvents
 {
@@ -12,7 +7,7 @@ namespace EddiEvents
     {
         public const string NAME = "NPC attack commenced";
         public const string DESCRIPTION = "Triggered when an attack on your ship by an NPC is detected";
-        public static readonly NPCAttackCommencedEvent SAMPLE = new NPCAttackCommencedEvent(DateTime.Now, "Bounty hunter");
+        public static readonly NPCAttackCommencedEvent SAMPLE = new NPCAttackCommencedEvent(DateTime.UtcNow, "Bounty hunter");
         public static Dictionary<string, string> VARIABLES = new Dictionary<string, string>();
 
         static NPCAttackCommencedEvent()

@@ -1,10 +1,4 @@
 ﻿using Newtonsoft.Json;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Utilities;
 
 namespace EddiDataDefinitions
 {
@@ -30,8 +24,8 @@ namespace EddiDataDefinitions
         public MaterialPresence(Material definition, decimal percentage)
         {
             this.definition = definition;
-            this.name = definition.name;
-            this.material = definition.name;
+            this.name = definition.invariantName;
+            this.material = definition.invariantName;
             this.rarity= definition.rarity;
             this.percentage = percentage;
         }
@@ -43,8 +37,8 @@ namespace EddiDataDefinitions
             if (definition != null)
             {
                 this.definition = definition;
-                this.name = definition.name;
-                this.material = definition.name;
+                this.name = definition.invariantName;
+                this.material = definition.invariantName;
                 this.rarity = definition.rarity;
             }
             this.percentage = percentage;

@@ -1,12 +1,20 @@
 ﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
 using EddiDataDefinitions;
 using EddiDataProviderService;
+using Rollbar;
 
-namespace Tests
+namespace UnitTests
 {
     [TestClass]
     public class StarSystemDataTests
     {
+        [TestInitialize]
+        public void start()
+        {
+            // Prevent telemetry data from being reported based on test results
+            RollbarLocator.RollbarInstance.Config.Enabled = false;
+        }
+
         [TestMethod]
         public void TestMerope()
         {
@@ -17,7 +25,7 @@ namespace Tests
             Assert.AreEqual("Merope", starSystem.name);
             Assert.IsNull(starSystem.allegiance);
             Assert.IsNull(starSystem.government);
-            Assert.IsNull(starSystem.primaryeconomy);
+            Assert.AreEqual("None", starSystem.primaryeconomy);
             Assert.AreEqual(null, starSystem.population);
 
             Assert.AreEqual((decimal)-78.59375, starSystem.x);

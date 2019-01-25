@@ -1,16 +1,38 @@
 ﻿using Newtonsoft.Json;
-using System;
+using Newtonsoft.Json.Linq;
 using System.Collections.Generic;
 using System.ComponentModel;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using System.Runtime.Serialization;
 
 namespace EddiDataDefinitions
 {
     public class MaterialAmount : INotifyPropertyChanged
     {
-        public string material { get; private set; }
+        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Populate)]
+        [DefaultValue(null)]
+        public string edname { get; private set; }
+
+        [JsonIgnore]
+        private string _material;
+        [JsonIgnore]
+        public string material
+        {
+            get
+            {
+                return _material;
+            }
+            set
+            {
+                if (_material != value)
+                {
+                    Material My_material = Material.FromName(value) ?? Material.FromEDName(value);
+                    _material = My_material?.localizedName ?? value;
+                    edname = My_material?.edname ?? value;
+                    Category = My_material?.category.localizedName;
+                    NotifyPropertyChanged("material");
+                }
+            }
+        }
 
         [JsonIgnore]
         private int _amount;
@@ -82,29 +104,71 @@ namespace EddiDataDefinitions
             }
         }
 
+        [JsonIgnore]
+        private string _Category;
+        [JsonIgnore]
+        public string Category
+        {
+            get
+            {
+                return _Category;
+            }
+            set
+            {
+                if (_Category != value)
+                {
+                    _Category = value;
+                    NotifyPropertyChanged("category");
+                }
+            }
+        }
+        
+        [JsonExtensionData]
+        private IDictionary<string, JToken> _additionalData = new Dictionary<string, JToken>();
+
+        [OnDeserialized]
+        private void OnDeserialized(StreamingContext context)
+        {
+            if(material == null)
+            {
+                string materialName = (string)_additionalData["material"];
+                material = materialName;
+            }
+            _additionalData = null;
+        }
+        
         public MaterialAmount(Material material, int amount)
         {
-            this.material = material.name;
+            Material My_material = Material.FromEDName(material.edname);
+            this.material = My_material?.invariantName;
+            this.edname = My_material?.edname;
             this.amount = amount;
+            this.Category = My_material?.category.localizedName;
         }
 
-        public MaterialAmount(Material material, int? minimum, int? desired, int? maximum)
+        public MaterialAmount(Material material, int amount, int? minimum, int? desired, int? maximum)
         {
-            this.material = material.name;
-            amount = 0;
+            Material My_material = Material.FromEDName(material.edname);
+            this.material = My_material?.localizedName;
+            this.edname = My_material?.edname;
+            this.amount = amount;
             this.minimum = minimum;
             this.desired = desired;
             this.maximum = maximum;
+            this.Category = My_material.category.localizedName;
         }
 
         [JsonConstructor]
-        public MaterialAmount(string material, int amount, int? minimum, int? desired, int? maximum)
+        public MaterialAmount(string edname, int amount, int? minimum, int? desired, int? maximum)
         {
-            this.material = material;
+            Material My_material = Material.FromEDName(edname);
+            this.material = My_material?.localizedName;
+            this.edname = My_material?.edname;
             this.amount = amount;
             this.minimum = minimum;
             this.desired = desired;
             this.maximum = maximum;
+            this.Category = My_material?.category.localizedName;
         }
 
         public event PropertyChangedEventHandler PropertyChanged;

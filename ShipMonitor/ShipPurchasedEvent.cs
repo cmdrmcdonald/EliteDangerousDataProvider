@@ -3,9 +3,6 @@ using EddiEvents;
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace EddiShipMonitor
 {
@@ -13,7 +10,7 @@ namespace EddiShipMonitor
     {
         public const string NAME = "Ship purchased";
         public const string DESCRIPTION = "Triggered when you purchase a ship";
-        public const string SAMPLE = "{ \"timestamp\":\"2016-09-20T18:14:26Z\", \"event\":\"ShipyardBuy\", \"ShipType\":\"federation_corvette\", \"ShipPrice\":18796945, \"SellOldShip\":\"CobraMkIII\", \"SellShipID\":42, \"SellPrice\":950787 }";
+        public const string SAMPLE = "{ \"timestamp\":\"2016-09-20T18:14:26Z\", \"event\":\"ShipyardBuy\", \"ShipType\":\"federation_corvette\", \"ShipPrice\":18796945, \"SellOldShip\":\"CobraMkIII\", \"SellShipID\":42, \"SellPrice\":950787, \"MarketID\": 128666762 }";
         public static Dictionary<string, string> VARIABLES = new Dictionary<string, string>();
 
         static ShipPurchasedEvent()
@@ -48,15 +45,19 @@ namespace EddiShipMonitor
         [JsonProperty("storedshipid")]
         public int? storedshipid { get; private set; }
 
-        public ShipPurchasedEvent(DateTime timestamp, string ship, long price, string soldShip, int? soldShipId, long? soldPrice, string storedShip, int? storedShipId) : base(timestamp, NAME)
+        // Admin
+        public long marketId { get; private set; }
+
+        public ShipPurchasedEvent(DateTime timestamp, string ship, long price, string soldShip, int? soldShipId, long? soldPrice, string storedShip, int? storedShipId, long marketId) : base(timestamp, NAME)
         {
-            this.ship = ship;
+            this.ship = ShipDefinitions.FromEDModel(ship).model;
             this.price = price;
             this.soldship = soldShip;
             this.soldshipid = soldShipId;
             this.soldprice = soldPrice;
             this.storedship = storedShip;
             this.storedshipid = storedShipId;
+            this.marketId = marketId;
         }
     }
 }

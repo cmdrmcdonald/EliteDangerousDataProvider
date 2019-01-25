@@ -1,14 +1,10 @@
-﻿using System;
-using System.Collections;
+﻿using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Diagnostics;
-using System.Linq;
-using System.Text;
 using System.Threading;
-using System.Threading.Tasks;
 
 namespace Utilities
 {
@@ -18,7 +14,7 @@ namespace Utilities
     /// <typeparam name="TKey">Specifies the type of the keys in this collection.</typeparam>
     /// <typeparam name="TValue">Specifies the type of the values in this collection.</typeparam>
     [DebuggerDisplay("Count={Count}")]
-    public class ObservableConcurrentDictionary<TKey, TValue> :
+    public sealed class ObservableConcurrentDictionary<TKey, TValue> :
         ICollection<KeyValuePair<TKey, TValue>>, IDictionary<TKey, TValue>,
         INotifyCollectionChanged, INotifyPropertyChanged
     {

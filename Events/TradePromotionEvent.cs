@@ -2,9 +2,6 @@
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace EddiEvents
 {
@@ -25,7 +22,7 @@ namespace EddiEvents
 
         public TradePromotionEvent(DateTime timestamp, TradeRating rating) : base(timestamp, NAME)
         {
-            this.rating = rating.name;
+            this.rating = rating.localizedName;
         }
     }
 }

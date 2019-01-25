@@ -1,33 +1,31 @@
 ﻿using Eddi;
+using EddiEvents;
+using Newtonsoft.Json.Linq;
 using SimpleFeedReader;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net;
-using System.ServiceModel.Syndication;
-using System.Text;
+using System.Resources;
+using System.Text.RegularExpressions;
 using System.Threading;
-using System.Threading.Tasks;
-using System.Xml;
-using System.Xml.Linq;
-using Utilities;
-using EddiEvents;
-using EddiCompanionAppService;
-using Newtonsoft.Json.Linq;
 using System.Windows.Controls;
+using Utilities;
 
 namespace GalnetMonitor
 {
+
     /// <summary>
     /// A sample EDDI monitor to watch The Elite: Dangerous RSS feed and generate an event for new items
     /// </summary>
     public class GalnetMonitor : EDDIMonitor
     {
-        private readonly string SOURCE = "https://community.elitedangerous.com/";
-        private readonly string RESOURCE = "/galnet-rss";
-        private static Dictionary<string, string> locales = new Dictionary<string, string>() { { "English", "en" }, { "Français", "fr" }, { "Deutsch", "de" } };
+        private static Dictionary<string, string> locales = new Dictionary<string, string>();
+        protected static string locale;
         private GalnetConfiguration configuration = new GalnetConfiguration();
+        protected static ResourceManager resourceManager = EddiGalnetMonitor.Properties.GalnetMonitor.ResourceManager;
 
         private bool running = false;
 
@@ -43,7 +41,6 @@ namespace GalnetMonitor
                 catch { }
             }
 
-
             configuration = GalnetConfiguration.FromFile();
         }
 
@@ -53,6 +50,11 @@ namespace GalnetMonitor
         public string MonitorName()
         {
             return "Galnet monitor";
+        }
+
+        public string LocalizedMonitorName()
+        {
+            return EddiGalnetMonitor.Properties.GalnetMonitor.name;
         }
 
         /// <summary>
@@ -68,7 +70,7 @@ namespace GalnetMonitor
         /// </summary>
         public string MonitorDescription()
         {
-            return @"Monitor Galnet for new news items and generate a ""Galnet news published"" event when new items are posted";
+            return EddiGalnetMonitor.Properties.GalnetMonitor.desc;
         }
 
         public bool IsRequired()
@@ -87,6 +89,7 @@ namespace GalnetMonitor
         public void Start()
         {
             running = true;
+            locales = GetGalnetLocales();
             monitor();
         }
 
@@ -114,73 +117,102 @@ namespace GalnetMonitor
 
         private void monitor()
         {
+            const int inGameOnlyStartDelayMilliSecs = 5 * 60 * 1000; // 5 mins
+            const int alwaysOnIntervalMilliSecs = 2 * 60 * 1000; // 2 mins
+            const int inGameOnlyIntervalMilliSecs = 30 * 1000; // 30 secs
+
+            if (!configuration.galnetAlwaysOn)
+            {
+                // Wait at least 5 minutes after starting before polling for new articles, but only if galnetAlwaysOn is false
+                Thread.Sleep(inGameOnlyStartDelayMilliSecs);
+            }
+
             while (running)
             {
-                List<News> newsItems = new List<News>();
-                string firstUid = null;
-                try
+                if (configuration.galnetAlwaysOn)
                 {
-                    string locale = "en";
-                    locales.TryGetValue(configuration.language, out locale);
-                    string url = SOURCE + locale + RESOURCE;
-                    Logging.Debug("Fetching Galnet articles from " + url);
-                    IEnumerable<FeedItem> items = new FeedReader(new GalnetFeedItemNormalizer(), true).RetrieveFeed(url);
-                    if (items != null)
+                    monitorGalnet();
+                    Thread.Sleep(alwaysOnIntervalMilliSecs);
+                }
+                else
+                {
+                    // We'll update the Galnet Monitor only if a journal event has taken place within the specified number of minutes
+                    if ((DateTime.UtcNow - EDDI.Instance.JournalTimeStamp).TotalMinutes < 10)
                     {
-                        foreach (FeedItem item in items)
+                        monitorGalnet();
+                    }
+                    else
+                    {
+                        Logging.Debug("No in-game activity detected, skipping galnet feed update");
+                    }
+                    Thread.Sleep(inGameOnlyIntervalMilliSecs);
+                }
+
+                void monitorGalnet()
+                {
+                    List<News> newsItems = new List<News>();
+                    string firstUid = null;
+                    try
+                    {
+                        locales.TryGetValue(configuration.language, out locale);
+                        string url = GetGalnetResource("sourceURL");
+
+                        Logging.Debug("Fetching Galnet articles from " + url);
+                        IEnumerable<FeedItem> items = new FeedReader(new GalnetFeedItemNormalizer(), true).RetrieveFeed(url);
+                        if (items != null)
                         {
-                            if (firstUid == null)
+                            foreach (GalnetFeedItemNormalizer.ExtendedFeedItem item in items)
                             {
-                                // Obtain the ID of the first item that we read as a marker
-                                firstUid = item.Id;
-                            }
+                                if (firstUid == null)
+                                {
+                                    // Obtain the ID of the first item that we read as a marker
+                                    firstUid = item.Id;
+                                }
 
-                            if (item.Id == configuration.lastuuid)
-                            {
-                                // Reached the first item we have already seen - go no further
-                                break;
-                            }
+                                if (item.Id == configuration.lastuuid)
+                                {
+                                    // Reached the first item we have already seen - go no further
+                                    break;
+                                }
 
-                            if (isInteresting(item.Title))
-                            {
-                                News newsItem = new News(item.Id, categoryFromTitle(item.Title), item.Title, item.GetContent(), item.PublishDate.DateTime, false);
+                                News newsItem = new News(item.Id, assignCategory(item.Title, item.GetContent()), item.Title, item.GetContent(), item.PublishDate.DateTime, false);
                                 newsItems.Add(newsItem);
                                 GalnetSqLiteRepository.Instance.SaveNews(newsItem);
                             }
                         }
                     }
-                }
-                catch (WebException wex)
-                {
-                    Logging.Debug("Exception attempting to obtain galnet feed: ", wex);
-                }
-
-                if (firstUid != configuration.lastuuid)
-                {
-                    Logging.Debug("Updated latest UID to " + firstUid);
-                    configuration.lastuuid = firstUid;
-                    configuration.ToFile();
-                }
-
-                if (newsItems.Count > 0)
-                {
-                    // Spin out event in to a different thread to stop blocking
-                    Thread thread = new Thread(() =>
+                    catch (WebException wex)
                     {
-                        try
-                        {
-                            EDDI.Instance.eventHandler(new GalnetNewsPublishedEvent(DateTime.Now, newsItems));
-                        }
-                        catch (ThreadAbortException)
-                        {
-                            Logging.Debug("Thread aborted");
-                        }
-                    });
-                    thread.IsBackground = true;
-                    thread.Start();
-                }
+                        Logging.Debug("Exception attempting to obtain galnet feed: ", wex);
+                    }
 
-                Thread.Sleep(120000);
+                    if (firstUid != configuration.lastuuid)
+                    {
+                        Logging.Debug("Updated latest UID to " + firstUid);
+                        configuration.lastuuid = firstUid;
+                        configuration.ToFile();
+                    }
+
+                    if (newsItems.Count > 0)
+                    {
+                        // Spin out event in to a different thread to stop blocking
+                        Thread thread = new Thread(() =>
+                        {
+                            try
+                            {
+                                EDDI.Instance.eventHandler(new GalnetNewsPublishedEvent(DateTime.UtcNow, newsItems));
+                            }
+                            catch (ThreadAbortException)
+                            {
+                                Logging.Debug("Thread aborted");
+                            }
+                        })
+                        {
+                            IsBackground = true
+                        };
+                        thread.Start();
+                    }
+                }
             }
         }
 
@@ -201,126 +233,82 @@ namespace GalnetMonitor
             return null;
         }
 
-        private static bool isInteresting(string title)
-        {
-            return title != "Powerplay: Incoming Update" && title != "Luttes d'influence galactiques" && title != "Machtspiele: Neues Update";
-        }
-
         /// <summary>
         /// Pick a category for the news item given its title
         /// </summary>
         /// <param name="title"></param>
         /// <returns></returns>
-        private string categoryFromTitle(string title)
+        private string assignCategory(string title, string content)
         {
-            if (configuration.language == "English")
+            if (title.StartsWith(GetGalnetResource("titleFilterPowerplay")))
             {
-                if (title.StartsWith("Galactic News: Weekly "))
-                {
-                    return title.Replace("Galactic News: Weekly ", "");
-                }
-
-                if (title.StartsWith("Community Goal: "))
-                {
-                    return "Community Goal";
-                }
-
-                if (title == "Galactic News: Starport Status Update")
-                {
-                    return "Starport Status Update";
-                }
-
-                return "Article";
+                return GetGalnetResource("categoryPowerplay");
             }
-            else if (configuration.language == "Français")
+
+            if (title.StartsWith(GetGalnetResource("titleFilterCg")) ||
+                Regex.IsMatch(content, GetGalnetResource("contentFilterCgRegex")))
             {
-                if (title.StartsWith("Actualité galactique : Rapport hebdomadaire - "))
-                {
-                    string subtitle = title.Replace("Actualité galactique : Rapport hebdomadaire - ", "");
-                    if (subtitle == "Démocratie")
-                    {
-                        return "Democracy Report";
-                    }
-                    else if (subtitle == "Conflits")
-                    {
-                        return "Conflict Report";
-                    }
-                    else if (subtitle == "Santé")
-                    {
-                        return "Health Report";
-                    }
-                    else if (subtitle == "Économie")
-                    {
-                        return "Economic Report";
-                    }
-                    else if (subtitle == "Sécurité")
-                    {
-                        return "Security Report";
-                    }
-                    else if (subtitle == "Expansions")
-                    {
-                        return "Expansion Report";
-                    }
-                }
-
-                if (title.StartsWith("Opération communautaire"))
-                {
-                    return "Community Goal";
-                }
-
-                if (title == "Actualité galactique : Mise à jour - État des spatioports")
-                {
-                    return "Starport Status Update";
-                }
-
-                return "Article";
+                return GetGalnetResource("categoryCG");
             }
-            else if (configuration.language == "Deutsch")
+
+            if (title.StartsWith(GetGalnetResource("titleFilterStarportStatus")))
             {
-                if (title.StartsWith("Galaktische News: Wöchentlicher "))
-                {
-                    string subtitle = title.Replace("Galaktische News: Wöchentlicher ", "");
-                    if (subtitle == "Demokratiereport")
-                    {
-                        return "Democracy Report";
-                    }
-                    else if (subtitle == "Konfliktreport")
-                    {
-                        return "Conflict Report";
-                    }
-                    else if (subtitle == "Gesundheitsreport")
-                    {
-                        return "Health Report";
-                    }
-                    else if (subtitle == "Wirtschaftsreport")
-                    {
-                        return "Economic Report";
-                    }
-                    else if (subtitle == "Sicherheitsreport")
-                    {
-                        return "Security Report";
-                    }
-                    else if (subtitle == "Expansionsreport")
-                    {
-                        return "Expansion Report";
-                    }
-                }
-                if (title.StartsWith("Community-Ziel"))
-                {
-                    return "Community Goal";
-                }
-
-                if (title == "Galaktische News: Sternenhafen-Status-Update")
-                {
-                    return "Starport Status Update";
-                }
-
-                return "Article";
+                return GetGalnetResource("categoryStarportStatus");
             }
-            else
+
+            if (title.StartsWith(GetGalnetResource("titleFilterWeekInReview")))
             {
-                return "Article";
+                return GetGalnetResource("categoryWeekInReview");
             }
+
+            return GetGalnetResource("categoryArticle");
+        }
+
+        private string GetGalnetResource(string basename)
+        {
+            CultureInfo ci = locale != null ? CultureInfo.GetCultureInfo(locale) : CultureInfo.InvariantCulture;
+            return resourceManager.GetString(basename, ci) ?? null;
+        }
+
+        public Dictionary<string, string> GetGalnetLocales()
+        {
+            Dictionary<string, string> locales = new Dictionary<string, string>();
+
+            locales.Add("English", "en"); // Add our "neutral" language "en".
+
+            // Add our satellite resource language folders to the list. Since these are stored according to folder name, we can interate through folder names to identify supported resources
+            Dictionary<string, string> satelliteLocales = new Dictionary<string, string>();
+            DirectoryInfo rootInfo = new DirectoryInfo(new FileInfo(System.Reflection.Assembly.GetExecutingAssembly().Location).DirectoryName);
+            DirectoryInfo[] subDirs = rootInfo.GetDirectories();
+            foreach (DirectoryInfo dir in subDirs)
+            {
+                string name = dir.Name;
+                if (name == "x86" || name == "x64")
+                {
+                    continue;
+                }
+                try
+                {
+                    CultureInfo cInfo = new CultureInfo(name);
+                    ResourceSet resourceSet = resourceManager.GetResourceSet(cInfo, true, true);
+                    if (resourceSet.GetString("sourceURL") != null)
+                    {
+                        satelliteLocales.Add(cInfo.DisplayName, name);
+                    }
+                }
+                catch
+                { }
+            }
+
+            // Sort satellite locales prior to adding them to our list
+            var list = satelliteLocales.Keys.ToList();
+            list.Sort();
+            foreach (var key in list)
+            {
+                locales.Add(key, satelliteLocales[key]);
+            }
+
+            return locales;
         }
     }
 }

@@ -1,8 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using Newtonsoft.Json;
+using System;
 
 namespace EddiDataDefinitions
 {
@@ -15,21 +12,27 @@ namespace EddiDataDefinitions
         public string name { get; set; }
 
         /// <summary>The composition of the ring</summary>
-        public Composition composition { get; set; }
+        [JsonIgnore, Obsolete("Please use localizedComposition or invariantComposition")]
+        public string composition => Composition.localizedName;
+        public RingComposition Composition { get; set; }
+        [JsonIgnore]
+        public string localizedComposition => Composition?.localizedName;
+        [JsonIgnore]
+        public string invariantComposition => Composition?.invariantName;
 
         /// <summary>The mass of the ring, in megatonnes</summary>
         public decimal mass { get; set; }
 
-        /// <summary>The inner radius of the ring, in metres</summary>
+        /// <summary>The inner radius of the ring, in kilometres</summary>
         public decimal innerradius { get; set; }
 
-        /// <summary>The outer radius of the ring, in metres</summary>
+        /// <summary>The outer radius of the ring, in kilometres</summary>
         public decimal outerradius { get; set; }
 
-        public Ring(string name, Composition composition, decimal mass, decimal innerradius, decimal outerradius)
+        public Ring(string name, RingComposition composition, decimal mass, decimal innerradius, decimal outerradius)
         {
             this.name = name;
-            this.composition = composition;
+            this.Composition = composition;
             this.mass = mass;
             this.innerradius = innerradius;
             this.outerradius = outerradius;

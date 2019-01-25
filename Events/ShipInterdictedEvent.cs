@@ -2,9 +2,6 @@
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace EddiEvents
 {
@@ -54,7 +51,7 @@ namespace EddiEvents
             this.submitted = submitted;
             this.iscommander = iscommander;
             this.interdictor = interdictor;
-            this.rating = (rating == null ? null : rating.name);
+            this.rating = rating?.localizedName;
             this.faction = faction;
             this.power = power;
         }

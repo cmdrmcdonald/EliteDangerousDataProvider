@@ -1,0 +1,54 @@
+﻿using EddiDataDefinitions;
+using EddiEvents;
+using Newtonsoft.Json;
+using System;
+using System.Collections.Generic;
+
+namespace EddiShipMonitor
+{
+    public class ModuleSoldEvent : Event
+    {
+        public const string NAME = "Module sold";
+        public const string DESCRIPTION = "Triggered when selling a module to outfitting";
+        public const string SAMPLE = "{ \"timestamp\":\"2016-06-10T14:32:03Z\", \"event\":\"ModuleSell\", \"MarketID\": 128666762, \"Slot\":\"Slot06_Size2\", \"SellItem\":\"int_cargorack_size1_class1\", \"SellPrice\":877, \"Ship\":\"asp\", \"ShipID\":1 }";
+        public static Dictionary<string, string> VARIABLES = new Dictionary<string, string>();
+
+        static ModuleSoldEvent()
+        {
+            VARIABLES.Add("ship", "The ship from which the module was sold");
+            VARIABLES.Add("shipid", "The ID of the ship from which the module was sold");
+            VARIABLES.Add("slot", "The outfitting slot");
+            VARIABLES.Add("module", "The module (object) being sold");
+            VARIABLES.Add("price", "The price of the module being sold");
+        }
+
+        [JsonProperty("ship")]
+        public string ship => shipDefinition?.model;
+
+        [JsonProperty("shipid")]
+        public int? shipid { get; private set; }
+
+        [JsonProperty("slot")]
+        public string slot { get; private set; }
+
+        [JsonProperty("module")]
+        public Module module { get; private set; }
+
+        [JsonProperty("price")]
+        public long price { get; private set; }
+
+        // Admin
+        public long marketId { get; private set; }
+        public Ship shipDefinition { get; private set; }
+
+        public ModuleSoldEvent(DateTime timestamp, string ship, int? shipid, string slot, Module module, long price, long marketId) : base(timestamp, NAME)
+        {
+            this.shipDefinition = ShipDefinitions.FromEDModel(ship);
+            this.shipid = shipid;
+            this.slot = slot;
+            this.module = module;
+            this.price = price;
+            this.marketId = marketId;
+        }
+    }
+}

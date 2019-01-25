@@ -13,44 +13,6 @@ namespace EddiShipMonitor
     {
         private static List<string> HARDPOINT_SIZES = new List<string>() { "Huge", "Large", "Medium", "Small", "Tiny" };
 
-        // Translations from the internal names used by Frontier to clean human-readable
-        private static Dictionary<string, string> shipTranslations = new Dictionary<string, string>()
-        {
-            { "Adder" , "Adder"},
-            { "Anaconda", "Anaconda" },
-            { "Asp", "Asp Explorer" },
-            { "Asp_Scout", "Asp Scout" },
-            { "BelugaLiner", "Beluga Liner" },
-            { "CobraMkIII", "Cobra Mk. III" },
-            { "CobraMkIV", "Cobra Mk. IV" },
-            { "Cutter", "Imperial Cutter" },
-            { "DiamondBack", "Diamondback Scout" },
-            { "DiamondBackXL", "Diamondback Explorer" },
-            { "Dolphin", "Dolphin" },
-            { "Eagle", "Eagle" },
-            { "Empire_Courier", "Imperial Courier" },
-            { "Empire_Eagle", "Imperial Eagle" },
-            { "Empire_Fighter", "Imperial Fighter" },
-            { "Empire_Trader", "Imperial Clipper" },
-            { "Federation_Corvette", "Federal Corvette" },
-            { "Federation_Dropship", "Federal Dropship" },
-            { "Federation_Dropship_MkII", "Federal Assault Ship" },
-            { "Federation_Gunship", "Federal Gunship" },
-            { "Federation_Fighter", "F63 Condor" },
-            { "FerDeLance", "Fer-de-Lance" },
-            { "Hauler", "Hauler" },
-            { "Independant_Trader", "Keelback" },
-            { "Orca", "Orca" },
-            { "Python", "Python" },
-            { "SideWinder", "Sidewinder" },
-            { "Type6", "Type-6 Transporter" },
-            { "Type7", "Type-7 Transporter" },
-            { "Type9", "Type-9 Heavy" },
-            { "Viper", "Viper Mk. III" },
-            { "Viper_MkIV", "Viper Mk. IV" },
-            { "Vulture", "Vulture" }
-        };
-
         public static List<Ship> ShipyardFromJson(Ship activeShip, dynamic json)
         {
             List<Ship> shipyard = new List<Ship>();
@@ -60,7 +22,7 @@ namespace EddiShipMonitor
                 if (shipJson != null)
                 {
                     // Take underlying value if present
-                    JObject shipObj = shipJson.Value == null ? shipJson : shipJson.Value;
+                    JObject shipObj = shipJson.Value ?? shipJson;
                     if (shipObj != null)
                     {
                         Ship ship = ShipFromJson(shipObj);
@@ -92,27 +54,33 @@ namespace EddiShipMonitor
                 return null;
             }
 
-            Ship Ship = ShipDefinitions.FromEDModel((string)json.GetValue("name"));
+            string edName = (string)json["name"];
+            Ship Ship = ShipDefinitions.FromEDModel(edName);
+            if (Ship == null)
+            {
+                // Unknown ship; report the full object so that we can update the definitions 
+                Logging.Info("Ship definition error: " + edName, JsonConvert.SerializeObject(json));
+
+                // Create a basic ship definition & supplement from the info available 
+                Ship = new Ship();
+                Ship.EDName = edName;
+            }
 
             // We want to return a basic ship if the parsing fails so wrap this
             try
             {
-                Ship.raw = json.ToString(Formatting.None);
                 Ship.LocalId = json.GetValue("id").Value<int>();
+                Ship.name = (string)json.GetValue("shipName");
+                Ship.ident = (string)json.GetValue("shipID");
 
                 Ship.value = (long)(json["value"]?["hull"] ?? 0) + (long)(json["value"]?["modules"] ?? 0);
-                Ship.cargocapacity = (int)(json["cargo"]?["capacity"] ?? 0);
-                Ship.cargocarried = (int)(json["cargo"]?["qty"] ?? 0);
+                Ship.cargocapacity = 0;
 
-                // Be sensible with health - round it unless it's very low
-                decimal Health = (decimal)(json["health"]?["hull"] ?? 0) / 10000;
-                if (Health < 5)
+                decimal? healthOutOf1e6 = (decimal?)(json["health"]?["hull"]);
+                if (healthOutOf1e6 != null)
                 {
-                    Ship.health = Math.Round(Health, 1);
-                }
-                else
-                {
-                    Ship.health = Math.Round(Health);
+                    decimal healthPercent = (decimal)healthOutOf1e6 / 10_000M;
+                    Ship.health = healthPercent;
                 }
 
                 if (json["modules"] != null)
@@ -130,7 +98,8 @@ namespace EddiShipMonitor
                     {
                         Ship.fueltankcapacity = (decimal)Math.Pow(2, Ship.fueltank.@class);
                     }
-                    Ship.fueltanktotalcapacity = (decimal?)json["fuel"]?["main"]?["capacity"];
+                    Ship.fueltanktotalcapacity = Ship.fueltankcapacity;
+                    Ship.paintjob = (string)(json["modules"]?["PaintJob"]?["name"] ?? null);
 
                     // Obtain the hardpoints.  Hardpoints can come in any order so first parse them then second put them in the correct order
                     Dictionary<string, Hardpoint> hardpoints = new Dictionary<string, Hardpoint>();
@@ -145,8 +114,7 @@ namespace EddiShipMonitor
                     {
                         for (int i = 1; i < 12; i++)
                         {
-                            Hardpoint hardpoint;
-                            hardpoints.TryGetValue(size + "Hardpoint" + i, out hardpoint);
+                            hardpoints.TryGetValue(size + "Hardpoint" + i, out Hardpoint hardpoint);
                             if (hardpoint != null)
                             {
                                 Ship.hardpoints.Add(hardpoint);
@@ -159,41 +127,38 @@ namespace EddiShipMonitor
                     {
                         if (module.Name.Contains("Slot"))
                         {
-                            Ship.compartments.Add(CompartmentFromJson(module));
+                            Compartment compartment = CompartmentFromJson(module);
+                            string moduleName = compartment.module?.invariantName ?? "";
+                            if (moduleName == "Fuel Tank")
+                            {
+                                Ship.fueltanktotalcapacity += (decimal)Math.Pow(2, compartment.module.@class);
+                            }
+                            if (moduleName.Contains("Cargo Rack"))
+                            {
+                                Ship.cargocapacity += (int)Math.Pow(2, compartment.module.@class);
+                            }
+
+                            Ship.compartments.Add(compartment);
                         }
                     }
                 }
 
-
-                // Obtain the cargo
-                if (json["cargo"] != null && json["cargo"]["items"] != null)
+                // Obtain the launchbays
+                if (json["launchBays"] != null)
                 {
-                    foreach (dynamic cargoJson in json["cargo"]["items"])
+                    foreach (dynamic launchbay in json["launchBays"])
                     {
-                        if (cargoJson != null && cargoJson["commodity"] != null)
+                        if (launchbay.Name.Contains("Slot"))
                         {
-                            string name = (string)cargoJson["commodity"];
-                            Cargo cargo = new Cargo();
-                            cargo.commodity = CommodityDefinitions.FromName(name);
-                            if (cargo.commodity.name == null)
-                            {
-                                // Unknown commodity; log an error so that we can update the definitions
-                                Logging.Error("No commodity definition for cargo", cargoJson.ToString(Formatting.None));
-                                cargo.commodity.name = name;
-                            }
-                            cargo.amount = (int)cargoJson["qty"];
-                            cargo.price = (long)cargoJson["value"] / cargo.amount;
-                            cargo.missionid = (long?)cargoJson["mission"];
-                            cargo.stolen = ((int?)(long?)cargoJson["marked"]) == 1;
-
-                            Ship.cargo.Add(cargo);
+                            Ship.launchbays.Add(LaunchBayFromJson(launchbay, Ship));
                         }
                     }
+
                 }
             }
             catch (Exception ex)
             {
-                Logging.Warn("Failed to parse ship", ex);
+                Logging.Warn("Failed to parse Frontier API ship details", ex);
             }
 
             return Ship;
@@ -201,7 +166,7 @@ namespace EddiShipMonitor
 
         public static Hardpoint HardpointFromJson(dynamic json)
         {
-            Hardpoint Hardpoint = new Hardpoint();
+            Hardpoint Hardpoint = new Hardpoint() { name = json.Name };
 
             string name = json.Name;
             if (name.StartsWith("Huge"))
@@ -227,8 +192,7 @@ namespace EddiShipMonitor
 
             if (json.Value is JObject)
             {
-                JToken value;
-                if (json.Value.TryGetValue("module", out value))
+                if (json.Value.TryGetValue("module", out JToken value))
                 {
                     Hardpoint.module = ModuleFromJson(name, json.Value);
                 }
@@ -239,7 +203,7 @@ namespace EddiShipMonitor
 
         public static Compartment CompartmentFromJson(dynamic json)
         {
-            Compartment Compartment = new Compartment();
+            Compartment Compartment = new Compartment() { name = json.Name };
 
             // Compartments have name of form "Slotnn_Sizenn"
             Match matches = Regex.Match((string)json.Name, @"Size([0-9]+)");
@@ -249,8 +213,7 @@ namespace EddiShipMonitor
 
                 if (json.Value is JObject)
                 {
-                    JToken value;
-                    if (json.Value.TryGetValue("module", out value))
+                    if (json.Value.TryGetValue("module", out JToken value))
                     {
                         Compartment.module = ModuleFromJson((string)json.Name, json.Value);
                     }
@@ -262,34 +225,94 @@ namespace EddiShipMonitor
         public static Module ModuleFromJson(string name, JObject json)
         {
             long id = (long)json["module"]["id"];
-            Module module = ModuleDefinitions.ModuleFromEliteID(id);
-            if (module.name == null)
+            string edName = (string)json["module"]["name"];
+
+            Module module = new Module(Module.FromEliteID(id) ?? Module.FromEDName(edName) ?? new Module());
+            if (module.invariantName == null)
             {
-                // Unknown module; log an error so that we can update the definitions
-                Logging.Error("No definition for ship module", json["module"].ToString(Formatting.None));
+                // Unknown module; report the full object so that we can update the definitions
+                Logging.Info("Module definition error: " + edName, JsonConvert.SerializeObject(json["module"]));
+
+                // Create a basic module & supplement from the info available
+                module = new Module(id, edName, -1, edName, -1, "", (long)json["module"]["value"]);
             }
 
-            module.price = (long)json["module"]["value"];
+            module.price = (long)json["module"]["value"]; // How much we actually paid for it
             module.enabled = (bool)json["module"]["on"];
             module.priority = (int)json["module"]["priority"];
-            // Be sensible with health - round it unless it's very low
-            decimal Health = (decimal)json["module"]["health"] / 10000;
-            if (Health < 5)
+            module.health = (decimal)json["module"]["health"] / 10_000M;
+
+            // Flag if module has engineering modifications
+            module.modified = json["engineer"] != null ? true : false;
+
+            return module;
+        }
+
+        public static LaunchBay LaunchBayFromJson(dynamic json, Ship ship)
+        {
+            LaunchBay launchbay = new LaunchBay() { name = json.Name };
+
+            foreach (Compartment cpt in ship.compartments)
             {
-                module.health = Math.Round(Health, 1);
+                if (cpt.name == launchbay.name)
+                {
+                    switch (cpt.module.basename)
+                    {
+                        case "PlanetaryVehicleHangar":
+                            launchbay.type = "SRV";
+                            break;
+                        case "FighterHangar":
+                            launchbay.type = "Fighter";
+                            break;
+                    }
+                }
+            }
+
+            // Launchbays have name of form "Slotnn_Sizenn", like compartments
+            Match matches = Regex.Match((string)json.Name, @"Size([0-9]+)");
+            if (matches.Success)
+            {
+                launchbay.size = Int32.Parse(matches.Groups[1].Value);
+
+                if (json.Value is JObject)
+                {
+                    for (int subslot = 0; subslot <= 5; subslot++)
+                    {
+                        if (json.Value.TryGetValue("SubSlot" + subslot, out JToken value))
+                        {
+                            launchbay.vehicles.Add(VehicleFromJson(subslot, value));
+                        }
+                    }
+                }
+            }
+
+            return launchbay;
+        }
+
+        public static Vehicle VehicleFromJson(int subslot, dynamic json)
+        {
+            Vehicle vehicle = new Vehicle
+            {
+                subslot = subslot,
+                EDName = (string)json["name"],
+                name = (string)json["locName"],
+                rebuilds = (int)json["rebuilds"]
+            };
+
+            string loadout = (string)json["loadoutName"];
+            loadout = loadout.Replace("(", "").Replace("&NBSP", "").Replace(")", "");
+            string[] loadoutParts = loadout.Split(';');
+            vehicle.loadout = loadoutParts[0];
+            if (loadoutParts.Length > 1)
+            {
+                vehicle.mount = loadoutParts[1];
             }
             else
             {
-                module.health = Math.Round(Health);
+                vehicle.mount = "";
             }
 
-            // Flag if module has modifications
-            if (json["module"]["modifiers"] != null)
-            {
-                module.modified = true;
-            }
-
-            return module;
+            return vehicle;
         }
     }
 }

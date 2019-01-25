@@ -3,9 +3,6 @@ using EddiEvents;
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace EddiShipMonitor
 {
@@ -13,7 +10,7 @@ namespace EddiShipMonitor
     {
         public const string NAME = "Ship swapped";
         public const string DESCRIPTION = "Triggered when you swap a ship";
-        public const string SAMPLE = "{\"timestamp\":\"2016-06-10T14:32:03Z\",\"event\":\"ShipyardSwap\",\"ShipType\":\"Adder\",\"ShipID\":1,\"StoreOldShip\":\"Anaconda\",\"StoreShipID\":2}";
+        public const string SAMPLE = "{\"timestamp\":\"2016-06-10T14:32:03Z\",\"event\":\"ShipyardSwap\",\"ShipType\":\"Adder\",\"ShipID\":1,\"StoreOldShip\":\"Anaconda\",\"StoreShipID\":2, \"MarketID\": 128666762}";
         public static Dictionary<string, string> VARIABLES = new Dictionary<string, string>();
 
         static ShipSwappedEvent()
@@ -44,14 +41,18 @@ namespace EddiShipMonitor
         [JsonProperty("storedship")]
         public string storedship { get; private set; }
 
-        public ShipSwappedEvent(DateTime timestamp, string ship, int shipId, string soldship, int? soldshipid, string storedship, int? storedshipid) : base(timestamp, NAME)
+        // Admin
+        public long marketId { get; private set; }
+
+        public ShipSwappedEvent(DateTime timestamp, string ship, int shipId, string soldship, int? soldshipid, string storedship, int? storedshipid, long marketId) : base(timestamp, NAME)
         {
-            this.ship = ship;
+            this.ship = ShipDefinitions.FromEDModel(ship).model;
             this.shipid = shipId;
             this.soldship = soldship;
             this.soldshipid = soldshipid;
             this.storedship = storedship;
             this.storedshipid = storedshipid;
+            this.marketId = marketId;
         }
     }
 }

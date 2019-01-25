@@ -1,10 +1,5 @@
-﻿using EddiDataDefinitions;
-using Newtonsoft.Json;
-using System;
+﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace EddiEvents
 {
@@ -12,7 +7,7 @@ namespace EddiEvents
     {
         public const string NAME = "NPC cargo scan commenced";
         public const string DESCRIPTION = "Triggered when a cargo scan on your ship by an NPC is detected";
-        public static readonly NPCCargoScanCommencedEvent SAMPLE = new NPCCargoScanCommencedEvent(DateTime.Now, "Pirate");
+        public static readonly NPCCargoScanCommencedEvent SAMPLE = new NPCCargoScanCommencedEvent(DateTime.UtcNow, "Pirate");
         public static Dictionary<string, string> VARIABLES = new Dictionary<string, string>();
 
         static NPCCargoScanCommencedEvent()

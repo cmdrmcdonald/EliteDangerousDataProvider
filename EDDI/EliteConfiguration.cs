@@ -1,7 +1,5 @@
 ﻿using Newtonsoft.Json;
 using System;
-using System.Collections.Generic;
-using System.IO;
 using Utilities;
 
 namespace Eddi
@@ -14,6 +12,9 @@ namespace Eddi
 
         [JsonIgnore]
         private string dataPath;
+
+        [JsonIgnore]
+        static readonly object fileLock = new object();
 
         public EliteConfiguration()
         {
@@ -71,7 +72,10 @@ namespace Eddi
             }
 
             string json = JsonConvert.SerializeObject(this, Formatting.Indented);
-            Files.Write(filename, json);
+            lock (fileLock)
+            {
+                Files.Write(filename, json);
+            }
         }
     }
 }

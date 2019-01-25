@@ -1,83 +1,55 @@
-﻿using Newtonsoft.Json;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Utilities;
-
-namespace EddiDataDefinitions
+﻿namespace EddiDataDefinitions
 {
     /// <summary>
     /// Superpowers
     /// </summary>
-    public class Superpower
+    public class Superpower : ResourceBasedLocalizedEDName<Superpower>
     {
-        private static readonly List<Superpower> SUPERPOWERS = new List<Superpower>();
-
-        public string name { get; private set; }
-
-        public string edname { get; private set; }
-
-        private Superpower(string edname, string name)
+        static Superpower()
         {
-            this.edname = edname;
-            this.name = name;
+            resourceManager = Properties.Superpowers.ResourceManager;
+            resourceManager.IgnoreCase = true;
+            missingEDNameHandler = (edname) => new Superpower(edname);
 
-            SUPERPOWERS.Add(this);
+            None = new Superpower("$faction_None"); // no semicolon in EDName
+            Federation = new Superpower("$faction_Federation;");
+            Alliance = new Superpower("$faction_Alliance;");
+            Empire = new Superpower("$faction_Empire;");
+            Independent = new Superpower("$faction_Independent;");
+            PilotsFederation = new Superpower("$faction_PilotsFederation;");
+            Pirate = new Superpower("$faction_Pirate;");
+            Guardian = new Superpower("$faction_Guardian;");
+            Thargoid = new Superpower("$faction_Thargoid;");
         }
 
-        public static readonly Superpower None = new Superpower("$faction_none;", "None");
-        public static readonly Superpower Federation = new Superpower("$faction_Federation;", "Federation");
-        public static readonly Superpower Alliance = new Superpower("$faction_Alliance;", "Alliance");
-        public static readonly Superpower Empire = new Superpower("$faction_Empire;", "Empire");
-        public static readonly Superpower Independent = new Superpower("$faction_Independent;", "Independent");
-        public static readonly Superpower Pirate = new Superpower("$faction_Pirate;", "Pirate");
+        public static readonly Superpower None;
+        public static readonly Superpower Federation;
+        public static readonly Superpower Alliance;
+        public static readonly Superpower Empire;
+        public static readonly Superpower Independent;
+        public static readonly Superpower PilotsFederation;
+        public static readonly Superpower Pirate;
+        public static readonly Superpower Guardian;
+        public static readonly Superpower Thargoid;
 
-        public static Superpower From(string from)
+        // dummy used to ensure that the static constructor has run
+        public Superpower() : this("")
+        { }
+
+        private Superpower(string edname) : base(edname, edname.Replace("$faction_", "").Replace(";", "").Replace(" ", ""))
+        { }
+
+        public static Superpower FromNameOrEdName(string from)
         {
             if (from == null)
             {
-                return null;
+                return None;
             }
 
             Superpower result = FromName(from);
-            if (result == null)
+            if (result == null && from.StartsWith("$faction_"))
             {
                 result = FromEDName(from);
-            }
-            return result;
-        }
-
-        public static Superpower FromName(string from)
-        {
-            if (from == null)
-            {
-                return null;
-            }
-
-            Superpower result = SUPERPOWERS.FirstOrDefault(v => v.name == from);
-            return result;
-        }
-
-        // We don't report if the result wasn't found because this is used speculatively, and many factions
-        // are not superpowers
-        public static Superpower FromEDName(string from)
-        {
-            if (from == null)
-            {
-                return null;
-            }
-
-            string tidiedFrom = from.ToLowerInvariant();
-            Superpower result;
-            if (tidiedFrom == null || tidiedFrom == "")
-            {
-                result = null;
-            }
-            else
-            {
-                result = SUPERPOWERS.FirstOrDefault(v => v.edname.ToLowerInvariant() == tidiedFrom);
             }
             return result;
         }

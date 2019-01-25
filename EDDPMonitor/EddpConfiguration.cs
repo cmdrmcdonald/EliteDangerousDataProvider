@@ -19,6 +19,9 @@ namespace EddiEddpMonitor
             watches = new List<Watch>();
         }
 
+        [JsonIgnore]
+        static readonly object fileLock = new object();
+
         /// <summary>
         /// Obtain configuration from a file.  If the file name is not supplied the the default
         /// path of Constants.Data_DIR\eddpmonitor.json is used
@@ -33,17 +36,17 @@ namespace EddiEddpMonitor
             EddpConfiguration configuration = new EddpConfiguration();
             if (File.Exists(filename))
             {
-                string data = Files.Read(filename);
-                if (data != null)
+                try
                 {
-                    try
+                    string data = Files.Read(filename);
+                    if (data != null)
                     {
                         configuration = JsonConvert.DeserializeObject<EddpConfiguration>(data);
                     }
-                    catch (Exception ex)
-                    {
-                        Logging.Debug("Failed to read EDDP monitor configuration", ex);
-                    }
+                }
+                catch (Exception ex)
+                {
+                    Logging.Debug("Failed to read EDDP monitor configuration", ex);
                 }
             }
             if (configuration == null)
@@ -82,7 +85,10 @@ namespace EddiEddpMonitor
             }
 
             string json = JsonConvert.SerializeObject(this, Formatting.Indented);
-            Files.Write(filename, json);
+            lock (fileLock)
+            {
+                Files.Write(filename, json);
+            }
         }
     }
 }

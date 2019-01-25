@@ -1,9 +1,4 @@
 ﻿using System;
-using System.IO;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using Newtonsoft.Json;
 using Utilities;
 
@@ -19,6 +14,9 @@ namespace EddiCompanionAppService
 
         [JsonIgnore]
         private string dataPath;
+
+        [JsonIgnore]
+        static readonly object fileLock = new object();
 
         /// <summary>
         /// Obtain commander config from a file. If  If the file name is not supplied the the default
@@ -71,7 +69,10 @@ namespace EddiCompanionAppService
             }
 
             string json = JsonConvert.SerializeObject(this, Formatting.Indented);
-            Files.Write(filename, json);
+            lock (fileLock)
+            {
+                Files.Write(filename, json);
+            }
         }
     }
 }

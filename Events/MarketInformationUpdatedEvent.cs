@@ -1,11 +1,5 @@
-﻿using EddiDataDefinitions;
-using Newtonsoft.Json;
-using System;
+﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Utilities;
 
 namespace EddiEvents
 {
@@ -13,7 +7,7 @@ namespace EddiEvents
     {
         public const string NAME = "Market information updated";
         public const string DESCRIPTION = "Triggered when market information for the currently docked station has been updated";
-        public static MarketInformationUpdatedEvent SAMPLE = new MarketInformationUpdatedEvent(DateTime.Now);
+        public const string SAMPLE = null;
 
         public static Dictionary<string, string> VARIABLES = new Dictionary<string, string>();
 
@@ -21,8 +15,12 @@ namespace EddiEvents
         {
         }
 
-        public MarketInformationUpdatedEvent(DateTime timestamp) : base(timestamp, NAME)
+        // Update type - `market`, `outfitting`, `profile`, or `shipyard`
+        public string update { get; private set; }
+
+        public MarketInformationUpdatedEvent(DateTime timestamp, string update) : base(timestamp, NAME)
         {
+            this.update = update;
         }
     }
 }

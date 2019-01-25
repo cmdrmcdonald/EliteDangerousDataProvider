@@ -1,9 +1,5 @@
 ﻿using System;
 using System.IO;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using Newtonsoft.Json;
 using Utilities;
 
@@ -38,6 +34,9 @@ namespace EddiSpeechService
         [JsonIgnore]
         private string dataPath;
 
+        [JsonIgnore]
+        static readonly object fileLock = new object();
+
         /// <summary>
         /// Obtain speech config from a file. If  If the file name is not supplied the the default
         /// path of Constants.Data_DIR\speech.json is used
@@ -53,17 +52,17 @@ namespace EddiSpeechService
             SpeechServiceConfiguration configuration = new SpeechServiceConfiguration();
             if (File.Exists(filename))
             {
-                string data = Files.Read(filename);
-                if (data != null)
+                try
                 {
-                    try
+                    string data = Files.Read(filename);
+                    if (data != null)
                     {
                         configuration = JsonConvert.DeserializeObject<SpeechServiceConfiguration>(data);
                     }
-                    catch (Exception ex)
-                    {
-                        Logging.Debug("Failed to read speech service configuration", ex);
-                    }
+                }
+                catch (Exception ex)
+                {
+                    Logging.Debug("Failed to read speech service configuration", ex);
                 }
             }
             if (configuration == null)
@@ -100,7 +99,10 @@ namespace EddiSpeechService
             }
 
             string json = JsonConvert.SerializeObject(this, Formatting.Indented);
-            Files.Write(filename, json);
+            lock (fileLock)
+            {
+                Files.Write(filename, json);
+            }
         }
     }
 }

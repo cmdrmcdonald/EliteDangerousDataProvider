@@ -1,14 +1,16 @@
 ﻿using Eddi;
+using EddiCompanionAppService;
 using EddiDataDefinitions;
+using EddiDataProviderService;
 using EddiEvents;
+using EddiSpeechService; // Used in release but not in debug.
 using Newtonsoft.Json;
 using RestSharp;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
-using System.Threading.Tasks;
 using System.Windows.Controls;
 using Utilities;
 
@@ -19,15 +21,27 @@ namespace EDDNResponder
     /// </summary>
     public class EDDNResponder : EDDIResponder
     {
-        // We keep a local track of the starsystem information
-        private string systemName = null;
-        private decimal? systemX = null;
-        private decimal? systemY = null;
-        private decimal? systemZ = null;
+        // We keep track of the starsystem information locally
+        public string systemName { get; private set; } = null;
+        public long? systemAddress { get; private set; } = null;
+        public decimal? systemX { get; private set; } = null;
+        public decimal? systemY { get; private set; } = null;
+        public decimal? systemZ { get; private set; } = null;
+        public string stationName { get; private set; } = null;
+        public long? marketId { get; private set; } = null;
+
+        public bool invalidState { get; private set; }
+
+        private StarSystemRepository starSystemRepository;
 
         public string ResponderName()
         {
             return "EDDN responder";
+        }
+
+        public string LocalizedResponderName()
+        {
+            return EddiEddnResponder.Properties.EddnResources.name;
         }
 
         public string ResponderVersion()
@@ -37,11 +51,15 @@ namespace EDDNResponder
 
         public string ResponderDescription()
         {
-            return "Send station, jump, and scan information to EDDN.  EDDN is a third-party tool that gathers information on systems and markets, and provides data for most trading tools as well as starsystem information tools such as EDDB";
+            return EddiEddnResponder.Properties.EddnResources.desc;
         }
 
-        public EDDNResponder()
+        public EDDNResponder() : this(EddiDataProviderService.StarSystemSqLiteRepository.Instance)
+        {}
+
+        public EDDNResponder(StarSystemRepository starSystemRepository)
         {
+            this.starSystemRepository = starSystemRepository;
             Logging.Info("Initialised " + ResponderName() + " " + ResponderVersion());
         }
 
@@ -61,26 +79,11 @@ namespace EDDNResponder
 
             Logging.Debug("Received event " + JsonConvert.SerializeObject(theEvent));
 
-            if (theEvent is LocationEvent)
-            {
-                handleLocationEvent((LocationEvent)theEvent);
-            }
-            if (theEvent is JumpedEvent)
-            {
-                handleJumpedEvent((JumpedEvent)theEvent);
-            }
-
-            if (theEvent is DockedEvent)
-            {
-                handleDockedEvent((DockedEvent)theEvent);
-            }
-
             if (theEvent is MarketInformationUpdatedEvent)
             {
                 handleMarketInformationUpdatedEvent((MarketInformationUpdatedEvent)theEvent);
             }
-
-            if (theEvent is JumpedEvent || theEvent is DockedEvent || theEvent is BodyScannedEvent || theEvent is StarScannedEvent)
+            else
             {
                 handleRawEvent(theEvent);
             }
@@ -99,133 +102,324 @@ namespace EDDNResponder
         {
         }
 
-        private void handleLocationEvent(LocationEvent @event)
-        {
-            systemName = @event.system;
-            systemX = @event.x;
-            systemY = @event.y;
-            systemZ = @event.z;
-        }
-
-        private void handleJumpedEvent(JumpedEvent @event)
-        {
-            systemName = @event.system;
-            systemX = @event.x;
-            systemY = @event.y;
-            systemZ = @event.z;
-        }
-
         private void handleRawEvent(Event theEvent)
         {
             IDictionary<string, object> data = Deserializtion.DeserializeData(theEvent.raw);
+            string edType = JsonParsing.getString(data, "event");
+
+            if (edType == "FSDTarget" || edType == "StartJump")
+            {
+                // FSDTarget events describing the system we are targetting rather than the system we are in.
+                // Scan events can register after StartJump and before we actually leave the originating system.
+                // These must be ignored.
+                return;
+            }
+            else if (edType == "Location" || edType == "FSDJump")
+            {
+                // We always start fresh from Location and FSDJump events
+                invalidState = false;
+                ClearLocation();
+            }
+
+            // Except as noted above, always attempt to obtain available location data from the active event 
+            GetLocationData(data);
+
+            // Confirm the data in memory is as accurate as possible
+            if (edType == "Docked" || edType == "Scan")
+            {
+                CheckLocationData(data);
+            }
+
+            if (LocationIsSet())
+            {
+                if (edType == "Docked" && systemName != null && stationName != null && marketId != null)
+                {
+                    // Send station data from the CAPI servers
+                    sendCommodityInformation();
+                    sendOutfittingInformation();
+                    sendShipyardInformation();
+                }
+
+                if (edType == "Location" || edType == "FSDJump" || edType == "Docked" || edType == "Scan")
+                {
+                    StripPersonalData(data);
+                    EnrichLocationData(edType, data);
+
+                    if (data != null)
+                    {
+                        SendToEDDN(data);
+                    }
+                }
+            }
+        }
+
+        private void ClearLocation()
+        {
+            systemName = null;
+            systemAddress = null;
+            systemX = null;
+            systemY = null;
+            systemZ = null;
+            stationName = null;
+            marketId = null;
+        }
+
+        private void GetLocationData(IDictionary<string, object> data)
+        {
+            try
+            {
+                systemName = JsonParsing.getString(data, "StarSystem") ?? systemName;
+
+                // Some events are bugged and return a SystemAddress of 1, regardles of the system we are in.
+                // We need to ignore data that matches this pattern.
+                long? SystemAddress = JsonParsing.getOptionalLong(data, "SystemAddress");
+                systemAddress = (SystemAddress > 1 ? SystemAddress : systemAddress);
+
+                data.TryGetValue("StarPos", out object starpos);
+                if (starpos != null)
+                {
+                    List<object> starPos = (List<object>)starpos;
+                    systemX = Math.Round(JsonParsing.getDecimal("X", starPos[0]) * 32M) / 32M;
+                    systemY = Math.Round(JsonParsing.getDecimal("Y", starPos[1]) * 32M) / 32M;
+                    systemZ = Math.Round(JsonParsing.getDecimal("Z", starPos[2]) * 32M) / 32M;
+                }
+
+                marketId = JsonParsing.getOptionalLong(data, "MarketID") ?? marketId;
+                stationName = JsonParsing.getString(data, "StationName") ?? stationName;
+            }
+            catch (Exception ex)
+            {
+                Logging.Error("Failed to parse EDDN location data from journal entry line: " + JsonConvert.SerializeObject(data), ". Exception: " + ex.Message + ". " + ex.StackTrace);
+            }
+        }
+
+        private void CheckLocationData(IDictionary<string, object> data)
+        {
+            // Can only send journal data if we know our current location data is correct
+            // If any location data is null, data shall not be sent to EDDN.
+            if (LocationIsSet())
+            {
+                // The `Docked` event doesn't provide system coordinates, and the `Scan`event doesn't provide any system location data.
+                // The EDDN journal schema requires that we enrich the journal event data with coordinates and system name (and system address if possible).
+                if (data.ContainsKey("BodyName") && !data.ContainsKey("SystemName"))
+                {
+                    // Apply heuristics to weed out mismatched systems and bodies
+                    ConfirmScan(JsonParsing.getString(data, "BodyName"));
+                }
+                if (!data.ContainsKey("SystemAddress") || !data.ContainsKey("StarPos"))
+                {
+                    // Out of an overabundance of caution, we do not use data from our saved star systems to enrich the data we send to EDDN, 
+                    // but we do use it as an independent check to make sure our system address and coordinates are accurate
+                    ConfirmAddressAndCoordinates(systemName);
+                }
+
+                // Logging.Warn("TimeStamp: " + ((DateTime)data["timestamp"]).ToUniversalTime().ToString() + ", " + "SystemName: " + systemName + ", " + "SystemAddress: " + systemAddress + ", " + "StarPos: " + systemX + ", " + systemY + ", " + systemZ + ", " + "Event: " + (string)data["event"]);
+
+                if (LocationIsSet())
+                {
+                    invalidState = false;
+                }
+                else if (!invalidState)
+                {
+                    invalidState = true;
+#if DEBUG
+#else
+                    Logging.Warn("The EDDN responder is in an invalid state and is unable to send messages.", JsonConvert.SerializeObject(this) + " Event: " + JsonConvert.SerializeObject(data));
+                    SpeechService.Instance.Say(null, EddiEddnResponder.Properties.EddnResources.errPosition, true);
+#endif
+                }
+            }
+        }
+
+        private bool LocationIsSet()
+        {
+            return systemName != null && systemAddress != null && systemX != null && systemY != null && systemZ != null;
+        }
+
+        private IDictionary<string, object> StripPersonalData(IDictionary<string, object> data)
+        {
             // Need to strip a number of entries
+            data.Remove("ActiveFine");
             data.Remove("CockpitBreach");
             data.Remove("BoostUsed");
             data.Remove("FuelLevel");
             data.Remove("FuelUsed");
+            data.Remove("BoostUsed");
             data.Remove("JumpDist");
+            data.Remove("Wanted");
+
+            data.TryGetValue("Factions", out object factionsVal);
+            if (factionsVal != null)
+            {
+                var factions = (List<object>)factionsVal;
+                foreach (object faction in factions)
+                {
+                    ((IDictionary<string, object>)faction).Remove("MyReputation");
+                    ((IDictionary<string, object>)faction).Remove("SquadronFaction");
+                    ((IDictionary<string, object>)faction).Remove("HappiestSystem");
+                    ((IDictionary<string, object>)faction).Remove("HomeSystem");
+                }
+            }
 
             // Need to remove any keys ending with _Localised
             data = data.Where(x => !x.Key.EndsWith("_Localised")).ToDictionary(x => x.Key, x => x.Value);
-
-            // Can only proceed if we know our current system
-
-            // Need to add StarSystem to scan events - can only do so if we have the data
-            if (theEvent is StarScannedEvent || theEvent is BodyScannedEvent)
-            {
-                if (systemName == null || systemX == null || systemY == null || systemZ == null)
-                {
-                    Logging.Debug("Missing current starsystem information, cannot send message to EDDN");
-                    return;
-                }
-                data.Add("StarSystem", systemName);
-            }
-
-            // Need to add StarPos to all events that don't already have them
-            if (!data.ContainsKey("StarPos"))
-            {
-                if (systemName == null || systemX == null || systemY == null || systemZ == null)
-                {
-                    Logging.Debug("Missing current starsystem information, cannot send message to EDDN");
-                    return;
-                }
-                IList<decimal> starpos = new List<decimal>();
-                starpos.Add(systemX.Value);
-                starpos.Add(systemY.Value);
-                starpos.Add(systemZ.Value);
-                data.Add("StarPos", starpos);
-            }
-
-            EDDNBody body = new EDDNBody();
-            body.header = generateHeader();
-            body.schemaRef = "https://eddn.edcd.io/schemas/journal/1" + (EDDI.Instance.inBeta ? "/test" : "");
-            body.message = data;
-
-            sendMessage(body);
-
+            return data;
         }
 
-        private void handleDockedEvent(DockedEvent theEvent)
+        private IDictionary<string, object> EnrichLocationData(string edType, IDictionary<string, object> data)
         {
-            // When we dock we have access to commodity and outfitting information
-            sendCommodityInformation();
-            sendOutfittingInformation();
+            if (!data.ContainsKey("StarSystem"))
+            {
+                data.Add("StarSystem", systemName);
+            }
+            if (!data.ContainsKey("SystemAddress"))
+            {
+                data.Add("SystemAddress", systemAddress);
+            }
+            if (!data.ContainsKey("StarPos"))
+            {
+                IList<decimal> starpos = new List<decimal>
+                {
+                    systemX.Value,
+                    systemY.Value,
+                    systemZ.Value
+                };
+                data.Add("StarPos", starpos);
+            }
+            return data;
+        }
+
+        private static void SendToEDDN(IDictionary<string, object> data)
+        {
+            EDDNBody body = new EDDNBody
+            {
+                header = generateHeader(),
+                schemaRef = "https://eddn.edcd.io/schemas/journal/1" + (EDDI.Instance.ShouldUseTestEndpoints() ? "/test" : ""),
+                message = data
+            };
+
+            sendMessage(body);
         }
 
         private void handleMarketInformationUpdatedEvent(MarketInformationUpdatedEvent theEvent)
         {
-            // When we dock we have access to commodity and outfitting information
-            sendCommodityInformation();
-            sendOutfittingInformation();
+            // This event is triggered by an update to the profile via the Frontier API
+            // Check to make sure the marketId from the acquired profile matches our current station's marketId before continuing
+            if (eventStationMatches(marketId, theEvent.update))
+            {
+                // When we dock we have access to commodity and outfitting information
+                switch (theEvent.update)
+                {
+                    case "market":
+                        {
+                            sendCommodityInformation();
+                        }
+                        break;
+                    case "outfitting":
+                        {
+                            sendOutfittingInformation();
+                        }
+                        break;
+                    case "profile":
+                        {
+                            sendCommodityInformation();
+                            sendOutfittingInformation();
+                            sendShipyardInformation();
+                        }
+                        break;
+                    case "shipyard":
+                        {
+                            sendShipyardInformation();
+                        }
+                        break;
+                }
+            }
         }
 
         private void sendCommodityInformation()
         {
-            // It's possible that the commodity data, if it is here, has already come from EDDB.  We use the average price
-            // as a marker: this isn't visible in EDDB, so if we have average price we know that this is data from the companion
-            // API and should be reported
-            if (EDDI.Instance.CurrentStation != null && EDDI.Instance.CurrentStation.commodities != null && EDDI.Instance.CurrentStation.commodities.Count > 0 && EDDI.Instance.CurrentStation.commodities[0].avgprice != null)
+            if (EDDI.Instance.CurrentStation != null && EDDI.Instance.CurrentStation.commodities != null && EDDI.Instance.CurrentStation.commodities.Count > 0)
             {
-                List<EDDNCommodity> eddnCommodities = new List<EDDNCommodity>();
-                foreach (Commodity commodity in EDDI.Instance.CurrentStation.commodities)
-                {
-                    if (commodity.category == "NonMarketable")
-                    {
-                        continue;
-                    }
-                    EDDNCommodity eddnCommodity = new EDDNCommodity();
-                    eddnCommodity.name = commodity.EDName;
-                    eddnCommodity.meanPrice = (int)commodity.avgprice;
-                    eddnCommodity.buyPrice = (int)commodity.buyprice;
-                    eddnCommodity.stock = (int)commodity.stock;
-                    eddnCommodity.stockBracket = commodity.stockbracket;
-                    eddnCommodity.sellPrice = (int)commodity.sellprice;
-                    eddnCommodity.demand = (int)commodity.demand;
-                    eddnCommodity.demandBracket = commodity.demandbracket;
-                    if (commodity.StatusFlags.Count > 0)
-                    {
-                        eddnCommodity.statusFlags = commodity.StatusFlags;
-                    }
-                    eddnCommodities.Add(eddnCommodity);
-                };
+                List<EDDNEconomy> eddnEconomies = prepareEconomyInformation();
+                List<EDDNCommodity> eddnCommodities = prepareCommodityInformation();
 
                 // Only send the message if we have commodities
                 if (eddnCommodities.Count > 0)
                 {
-                    IDictionary<string, object> data = new Dictionary<string, object>();
-                    data.Add("timestamp", DateTime.Now.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ"));
-                    data.Add("systemName", systemName);
-                    data.Add("stationName", EDDI.Instance.CurrentStation.name);
+                    IDictionary<string, object> data = new Dictionary<string, object>
+                    {
+                        { "timestamp", DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ") },
+                        { "systemName", systemName },
+                        { "stationName", stationName },
+                        { "marketId", marketId }
+                    };
+                    if (eddnEconomies.Count > 0)
+                    {
+                        data.Add("economies", eddnEconomies);
+                    }
                     data.Add("commodities", eddnCommodities);
+                    if (EDDI.Instance.CurrentStation.prohibited?.Count > 0 && EDDI.Instance.CurrentStation.name == stationName)
+                    {
+                        data.Add("prohibited", EDDI.Instance.CurrentStation.prohibited);
+                    }
 
-                    EDDNBody body = new EDDNBody();
-                    body.header = generateHeader();
-                    body.schemaRef = "https://eddn.edcd.io/schemas/commodity/3" + (EDDI.Instance.inBeta ? "/test" : "");
-                    body.message = data;
+                    EDDNBody body = new EDDNBody
+                    {
+                        header = generateHeader(),
+                        schemaRef = "https://eddn.edcd.io/schemas/commodity/3" + (EDDI.Instance.ShouldUseTestEndpoints() ? "/test" : ""),
+                        message = data
+                    };
 
+                    Logging.Debug("EDDN message is: " + JsonConvert.SerializeObject(body));
                     sendMessage(body);
                 }
             }
+        }
+
+        private static List<EDDNEconomy> prepareEconomyInformation()
+        {
+            List<EDDNEconomy> eddnEconomies = new List<EDDNEconomy>();
+            if (EDDI.Instance.CurrentStation.economyShares != null)
+            {
+                foreach (EconomyShare economy in EDDI.Instance.CurrentStation.economyShares)
+                {
+                    EDDNEconomy eddnEconomy = new EDDNEconomy(economy);
+                    eddnEconomies.Add(eddnEconomy);
+                }
+            }
+
+            return eddnEconomies;
+        }
+
+        private static List<EDDNCommodity> prepareCommodityInformation()
+        {
+            List<EDDNCommodity> eddnCommodities = new List<EDDNCommodity>();
+            foreach (CommodityMarketQuote quote in EDDI.Instance.CurrentStation.commodities)
+            {
+                if (quote.definition == null)
+                {
+                    continue;
+                }
+                if (!quote.fromFDev)
+                {
+                    // We only want data from the Frontier API (or market.json)
+                    // Data from 3rd parties (EDDB, EDSM, EDDP, etc.) is not acceptable.
+                    continue;
+                }
+                if (quote.avgprice == 0)
+                {
+                    // Check that the average price is greater than zero.
+                    continue;
+                }
+                if (quote.definition.category == CommodityCategory.NonMarketable)
+                {
+                    // Include only marketable commodities.
+                    continue;
+                }
+                EDDNCommodity eddnCommodity = new EDDNCommodity(quote);
+                eddnCommodities.Add(eddnCommodity);
+            };
+            return eddnCommodities;
         }
 
         private void sendOutfittingInformation()
@@ -235,7 +429,7 @@ namespace EDDNResponder
                 List<string> eddnModules = new List<string>();
                 foreach (Module module in EDDI.Instance.CurrentStation.outfitting)
                 {
-                    if ((!ModuleDefinitions.IsPP(module))
+                    if ((!module.IsPowerPlay())
                         && (module.EDName.StartsWith("Int_") || module.EDName.StartsWith("Hpt_") || module.EDName.Contains("_Armour_"))
                         && (!(module.EDName == "Int_PlanetApproachSuite")))
                     {
@@ -246,21 +440,61 @@ namespace EDDNResponder
                 // Only send the message if we have modules
                 if (eddnModules.Count > 0)
                 {
-                    IDictionary<string, object> data = new Dictionary<string, object>();
-                    data.Add("timestamp", DateTime.Now.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ"));
-                    data.Add("systemName", EDDI.Instance.CurrentStation.systemname);
-                    data.Add("stationName", EDDI.Instance.CurrentStation.name);
-                    data.Add("modules", eddnModules);
+                    IDictionary<string, object> data = new Dictionary<string, object>
+                    {
+                        { "timestamp", DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ") },
+                        { "systemName", systemName },
+                        { "stationName", stationName },
+                        { "marketId", marketId },
+                        { "modules", eddnModules }
+                    };
 
-                    EDDNBody body = new EDDNBody();
-                    body.header = generateHeader();
-                    body.schemaRef = "https://eddn.edcd.io/schemas/outfitting/2" + (EDDI.Instance.inBeta ? "/test" : "");
-                    body.message = data;
+                    EDDNBody body = new EDDNBody
+                    {
+                        header = generateHeader(),
+                        schemaRef = "https://eddn.edcd.io/schemas/outfitting/2" + (EDDI.Instance.ShouldUseTestEndpoints() ? "/test" : ""),
+                        message = data
+                    };
 
                     sendMessage(body);
                 }
             }
         }
+
+        private void sendShipyardInformation()
+        {
+            if (EDDI.Instance.CurrentStation != null && EDDI.Instance.CurrentStation.shipyard != null)
+            {
+                List<string> eddnShips = new List<string>();
+                foreach (Ship ship in EDDI.Instance.CurrentStation.shipyard)
+                {
+                        eddnShips.Add(ship.EDName);
+                }
+
+                // Only send the message if we have ships
+                if (eddnShips.Count > 0)
+                {
+                    IDictionary<string, object> data = new Dictionary<string, object>
+                    {
+                        { "timestamp", DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ") },
+                        { "systemName", systemName },
+                        { "stationName", stationName },
+                        { "marketId", marketId },
+                        { "ships", eddnShips }
+                    };
+
+                    EDDNBody body = new EDDNBody
+                    {
+                        header = generateHeader(),
+                        schemaRef = "https://eddn.edcd.io/schemas/shipyard/2" + (EDDI.Instance.ShouldUseTestEndpoints() ? "/test" : ""),
+                        message = data
+                    };
+
+                    sendMessage(body);
+                }
+            }
+        }
+
 
         private static string generateUploaderId()
         {
@@ -279,16 +513,17 @@ namespace EDDNResponder
 
         private static EDDNHeader generateHeader()
         {
-            EDDNHeader header = new EDDNHeader();
-            header.softwareName = Constants.EDDI_NAME;
-            header.softwareVersion = Constants.EDDI_VERSION;
-            header.uploaderID = generateUploaderId();
+            EDDNHeader header = new EDDNHeader
+            {
+                softwareName = Constants.EDDI_NAME,
+                softwareVersion = Constants.EDDI_VERSION.ToString(),
+                uploaderID = generateUploaderId()
+            };
             return header;
         }
 
         private static void sendMessage(EDDNBody body)
         {
-            Logging.Debug(JsonConvert.SerializeObject(body));
             var client = new RestClient("https://eddn.edcd.io:4430/");
             var request = new RestRequest("upload/", Method.POST);
             request.AddParameter("application/json", JsonConvert.SerializeObject(body), ParameterType.RequestBody);
@@ -311,15 +546,89 @@ namespace EDDNResponder
                 {
                     Logging.Warn("Failed to send error to EDDN", ex);
                 }
-            });
-            thread.Name = "EDDN message";
-            thread.IsBackground = true;
+            })
+            {
+                Name = "EDDN message",
+                IsBackground = true
+            };
             thread.Start();
         }
 
         public UserControl ConfigurationTabItem()
         {
             return null;
+        }
+
+        private bool ConfirmAddressAndCoordinates(string systemName)
+        {
+            if (systemName != null)
+            {
+                StarSystem system = starSystemRepository.GetOrCreateStarSystem(systemName);
+                if (system != null)
+                {
+                    if (systemAddress != system.systemAddress)
+                    {
+                        systemAddress = null;
+                    }
+                    if (systemX != system.x || systemY != system.y || systemZ != system.z)
+                    {
+                        systemX = null;
+                        systemY = null;
+                        systemZ = null;
+                    }
+                }
+                else
+                {
+                    ClearLocation();
+                }
+            }
+            return systemAddress != null && systemX != null && systemY != null && systemZ != null;
+        }
+
+        private bool ConfirmScan(string bodyName)
+        {
+            if (bodyName != null && systemName != null)
+            {
+                if (bodyName.StartsWith(systemName))
+                {
+                    // If the system name is a subset of the body name, we're probably in the right place.
+                    return true;
+                }
+                else
+                {
+                    // If the body doesn't start with the system name, it should also 
+                    // not match a naming pattern for a procedurally generated name.
+                    // If it does, it's (probably) in the wrong place.
+                    Regex isProcGenName = new Regex(@"[A-Z][A-Z]-[A-Z] [a-h][0-9]");
+                    if (!isProcGenName.IsMatch(bodyName))
+                    {
+                        return true;
+                    }
+                }
+            }
+            // Set values to null if data can't be confirmed. 
+            ClearLocation();
+            return false;
+        }
+
+        private bool eventStationMatches(long? eventMarketId, string update)
+        {
+            if (update == "profile")
+            {
+                Profile profile = CompanionAppService.Instance?.Profile();
+                if (profile != null)
+                {
+                    if (profile.LastStation?.marketId == eventMarketId && (bool?)profile.json["commander"]["docked"] == true)
+                    {
+                        return true;
+                    }
+                }
+            }
+            else if (EDDI.Instance?.CurrentStation?.marketId == marketId)
+            {
+                return true;
+            }
+            return false;
         }
     }
 }

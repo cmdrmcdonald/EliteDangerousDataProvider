@@ -1,12 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Eddi;
+﻿using Eddi;
 using Utilities;
 using EddiEvents;
 using Newtonsoft.Json;
+using System;
 using System.Windows.Controls;
 
 namespace EddiVoiceAttackResponder
@@ -16,9 +12,24 @@ namespace EddiVoiceAttackResponder
     /// </summary>
     class VoiceAttackResponder : EDDIResponder
     {
+        public static event EventHandler<Event> RaiseEvent;
+
+        protected virtual void OnEvent(EventArgs @eventArgs, Event @event)
+        {
+            if (RaiseEvent != null)
+            {
+                RaiseEvent(@eventArgs, @event);
+            }
+        }
+
         public string ResponderName()
         {
             return "VoiceAttack responder";
+        }
+
+        public string LocalizedResponderName()
+        {
+            return Properties.VoiceAttack.name;
         }
 
         public string ResponderVersion()
@@ -28,7 +39,7 @@ namespace EddiVoiceAttackResponder
 
         public string ResponderDescription()
         {
-            return "A responder that generates a large number of variables within VoiceAttack as well as triggering user-defined actions.";
+            return Properties.VoiceAttack.desc;
         }
 
         public VoiceAttackResponder()
@@ -38,8 +49,14 @@ namespace EddiVoiceAttackResponder
 
         public void Handle(Event theEvent)
         {
+            if (theEvent.fromLoad)
+            {
+                return;
+            }
+
             Logging.Debug("Received event " + JsonConvert.SerializeObject(theEvent));
             VoiceAttackPlugin.EventQueue.Add(theEvent);
+            OnEvent(new EventArgs(), theEvent);
         }
 
         public bool Start()

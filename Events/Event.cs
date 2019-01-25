@@ -1,9 +1,5 @@
 ﻿using Newtonsoft.Json;
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace EddiEvents
 {
@@ -20,6 +16,9 @@ namespace EddiEvents
 
         [JsonProperty("type")]
         public string type { get; private set; }
+
+        [JsonProperty("fromLoad")]
+        public bool fromLoad { get; set; }
 
         public Event(DateTime timestamp, string type)
         {

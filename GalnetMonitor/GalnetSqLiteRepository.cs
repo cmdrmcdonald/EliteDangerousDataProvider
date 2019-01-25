@@ -1,5 +1,4 @@
 ﻿using EddiDataProviderService;
-using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.Data.SQLite;
@@ -10,7 +9,7 @@ namespace GalnetMonitor
 {
     public class GalnetSqLiteRepository : SqLiteBaseRepository, GalnetRepository
     {
-        private static string CREATE_SQL = @"
+        private const string CREATE_SQL = @"
                     CREATE TABLE IF NOT EXISTS galnet(
                       uuid TEXT NOT NULL
                      ,category TEXT NOT NULL
@@ -18,10 +17,10 @@ namespace GalnetMonitor
                      ,content TEXT NOT NULL
                      ,published DATETIME NOT NULL
                      ,read BOOLEAN NOT NULL)";
-        private static string CREATE_INDEX_SQL = @"
+        private const string CREATE_INDEX_SQL = @"
                     CREATE UNIQUE INDEX IF NOT EXISTS galnet_idx_1
                     ON galnet(uuid)";
-        private static string INSERT_SQL = @"
+        private const string INSERT_SQL = @"
                     INSERT INTO galnet(
                        uuid
                       ,category
@@ -30,10 +29,10 @@ namespace GalnetMonitor
                       ,published
                       ,read)
                     VALUES(@uuid, @category, @title, @content, @published, 0)";
-        private static string DELETE_SQL = @"DELETE FROM galnet WHERE uuid = @uuid";
-        private static string TRUNCATE_SQL = @"DELETE FROM galnet";
-        private static string MARK_READ_SQL = @"UPDATE galnet SET read = @read WHERE uuid = @uuid";
-        private static string SELECT_BY_UUID_SQL = @"
+        private const string DELETE_SQL = @"DELETE FROM galnet WHERE uuid = @uuid";
+        private const string TRUNCATE_SQL = @"DELETE FROM galnet";
+        private const string MARK_READ_SQL = @"UPDATE galnet SET read = @read WHERE uuid = @uuid";
+        private const string SELECT_BY_UUID_SQL = @"
                     SELECT uuid,
                            category,
                            title,
@@ -42,7 +41,7 @@ namespace GalnetMonitor
                            read
                     FROM galnet
                     WHERE uuid = @uuid";
-        private static string SELECT_ALL_UNREAD_SQL = @"
+        private const string SELECT_ALL_UNREAD_SQL = @"
                     SELECT uuid,
                            category,
                            title,
@@ -52,7 +51,17 @@ namespace GalnetMonitor
                     FROM galnet
                     WHERE read = 0
                     ORDER BY published DESC";
-        private static string SELECT_CATEGORY_UNREAD_SQL = @"
+        private const string SELECT_ALL_SQL = @"
+                    SELECT uuid,
+                           category,
+                           title,
+                           content,
+                           published,
+                           read
+                    FROM galnet
+                    WHERE read >= 0
+                    ORDER BY published DESC";
+        private const string SELECT_CATEGORY_UNREAD_SQL = @"
                     SELECT uuid,
                            category,
                            title,
@@ -63,7 +72,7 @@ namespace GalnetMonitor
                     WHERE read = 0
                       AND category = @category
                     ORDER BY published DESC";
-        private static string SELECT_CATEGORY_SQL = @"
+        private const string SELECT_CATEGORY_SQL = @"
                     SELECT uuid,
                            category,
                            title,
@@ -125,7 +134,6 @@ namespace GalnetMonitor
                             }
                         }
                     }
-                    con.Close();
                 }
             }
             catch (Exception ex)
@@ -138,7 +146,7 @@ namespace GalnetMonitor
         public List<News> GetArticles(string category = null, bool incRead = false)
         {
             if (!File.Exists(DbFile)) return null;
-
+            if (String.Equals(category, "All", StringComparison.Ordinal)) { category = null; }
             List<News> result = null;
             try
             {
@@ -160,7 +168,14 @@ namespace GalnetMonitor
                         }
                         else
                         {
-                            cmd.CommandText = SELECT_ALL_UNREAD_SQL;
+                            if (incRead)
+                            {
+                                cmd.CommandText = SELECT_ALL_SQL;
+                            }
+                            else
+                            {
+                                cmd.CommandText = SELECT_ALL_UNREAD_SQL;
+                            } 
                         }
                         cmd.Prepare();
                         cmd.Parameters.AddWithValue("@category", category);
@@ -173,7 +188,6 @@ namespace GalnetMonitor
                             }
                         }
                     }
-                    con.Close();
                 }
             }
             catch (Exception ex)
@@ -223,7 +237,6 @@ namespace GalnetMonitor
                                 Logging.Warn("Failed to insert news", sle);
                             }
                         }
-                        con.Close();
                     }
                 }
             }
@@ -240,7 +253,6 @@ namespace GalnetMonitor
                     cmd.Prepare();
                     cmd.ExecuteNonQuery();
                 }
-                con.Close();
             }
         }
 
@@ -256,7 +268,6 @@ namespace GalnetMonitor
                     cmd.Parameters.AddWithValue("@uuid", news.id);
                     cmd.ExecuteNonQuery();
                 }
-                con.Close();
             }
         }
 
@@ -273,7 +284,6 @@ namespace GalnetMonitor
                     cmd.Parameters.AddWithValue("@uuid", news.id);
                     cmd.ExecuteNonQuery();
                 }
-                con.Close();
             }
         }
 
@@ -286,11 +296,10 @@ namespace GalnetMonitor
                 {
                     cmd.CommandText = MARK_READ_SQL;
                     cmd.Prepare();
-                    cmd.Parameters.AddWithValue("@read", 1);
+                    cmd.Parameters.AddWithValue("@read", 0);
                     cmd.Parameters.AddWithValue("@uuid", news.id);
                     cmd.ExecuteNonQuery();
                 }
-                con.Close();
             }
         }
 
@@ -312,8 +321,6 @@ namespace GalnetMonitor
                     Logging.Debug("Creating galnet index");
                     cmd.ExecuteNonQuery();
                 }
-
-                con.Close();
             }
             Logging.Debug("Created galnet repository");
         }

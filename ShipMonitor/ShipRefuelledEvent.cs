@@ -1,11 +1,6 @@
-﻿using EddiDataDefinitions;
-using EddiEvents;
-using Newtonsoft.Json;
+﻿using EddiEvents;
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace EddiShipMonitor
 {
@@ -23,6 +18,7 @@ namespace EddiShipMonitor
             VARIABLES.Add("price", "The price of refuelling (only available if the source is Market)");
             VARIABLES.Add("amount", "The amount of fuel obtained");
             VARIABLES.Add("total", "The new fuel level (only available if the source is Scoop)");
+            VARIABLES.Add("full", "Whether this is a full refuel");
         }
 
         public string source { get; private set; }
@@ -33,12 +29,15 @@ namespace EddiShipMonitor
 
         public decimal? total { get; private set; }
 
-        public ShipRefuelledEvent(DateTime timestamp, string source, long? price, decimal amount, decimal? total) : base(timestamp, NAME)
+        public bool full { get; private set; }
+
+        public ShipRefuelledEvent(DateTime timestamp, string source, long? price, decimal amount, decimal? total, bool full = false) : base(timestamp, NAME)
         {
             this.source = source;
             this.price = price;
             this.amount = amount;
             this.total = total;
+            this.full = full;
         }
     }
 }

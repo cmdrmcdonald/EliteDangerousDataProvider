@@ -1,43 +1,78 @@
-﻿using System;
+﻿using Newtonsoft.Json;
+using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Utilities;
+using System.Globalization;
+using System.Resources;
 
 namespace EddiDataDefinitions
 {
     /// <summary>
     /// Volcanism
     /// </summary>
+    [JsonObject(MemberSerialization.OptIn)]
     public class Volcanism
     {
-        // Translation of composition of volcanism 
-        private static readonly IDictionary<string, string> COMPOSITIONS = new Dictionary<string, string>();
-
-        public string type { get; set; } // Geysers/Magma
-
-        public string composition { get; set; } // Iron, Silicate, etc.
-
-        public string amount { get; set; } // Minor, Major, null (for normal)
-
         static Volcanism()
         {
+            resourceManager = Properties.Volcanism.ResourceManager;
+            resourceManager.IgnoreCase = true;
+
             COMPOSITIONS.Add("ammonia", "Ammonia");
             COMPOSITIONS.Add("carbon dioxide", "Carbon dioxide");
             COMPOSITIONS.Add("metallic", "Iron");
             COMPOSITIONS.Add("methane", "Methane");
             COMPOSITIONS.Add("nitrogen", "Nitrogen");
-            COMPOSITIONS.Add("rocky", "Silicate");
+            COMPOSITIONS.Add("rocky", "Silicate"); // "Rocky" isn't listed by the player journal manual but is reported by the player journal
+            COMPOSITIONS.Add("silicate", "Silicate");
             COMPOSITIONS.Add("silicate vapour", "Silicate vapour");
             COMPOSITIONS.Add("water", "Water");
         }
 
-        public Volcanism(string type, string composition, string amount)
+        public static readonly ResourceManager resourceManager;
+
+        // Translation of composition of volcanism 
+        private static readonly IDictionary<string, string> COMPOSITIONS = new Dictionary<string, string>();
+
+        [JsonProperty("type")]
+        public string edType { get; set; } // Geysers/Magma
+        public string invariantType => GetInvariantString(edType);
+        public string localizedType => GetLocalizedString(edType);
+        [JsonIgnore, Obsolete("Please use localizedType or invariantType")]
+        public string type => localizedType;
+
+        [JsonProperty("composition")]
+        public string edComposition { get; set; } // Iron, Silicate, etc.
+        public string invariantComposition => GetInvariantString(edComposition);
+        public string localizedComposition => GetLocalizedString(edComposition);
+        [JsonIgnore, Obsolete("Please use localizedComposition or invariantComposition")]
+        public string composition => localizedComposition;
+
+        [JsonProperty("amount")]
+        public string edAmount { get; set; } // Minor, Major, null (for normal)
+        public string invariantAmount => GetInvariantString(edAmount);
+        public string localizedAmount => GetLocalizedString(edAmount);
+        [JsonIgnore, Obsolete("Please use localizedAmount or invariantAmount")]
+        public string amount => localizedAmount;
+
+        private string GetInvariantString(string name)
         {
-            this.type = type;
-            this.composition = composition;
-            this.amount = amount;
+            if (name == null) { return null; }
+            name = name.Replace(" ", "_");
+            return resourceManager.GetString(name, CultureInfo.InvariantCulture);
+        }
+
+        private string GetLocalizedString(string name)
+        {
+            if (name == null) { return null; }
+            name = name.Replace(" ", "_");
+            return resourceManager.GetString(name);
+        }
+
+        public Volcanism(string type, string composition, string amountEDName)
+        {
+            this.edType = type;
+            this.edComposition = composition;
+            this.edAmount = amountEDName;
         }
 
         /// <summary>
@@ -45,12 +80,12 @@ namespace EddiDataDefinitions
         /// </summary>
         public static Volcanism FromName(string from)
         {
-            if (from == null || from == "" || from == "No volcanism")
+            from = from?.ToLowerInvariant();
+
+            if (from == null || from == "" || from == "no volcanism")
             {
                 return null;
             }
-
-            from = from.ToLowerInvariant();
 
             // Volcanism commonly has ' volcanism' attached to the end of it; remove it here
             if (from.EndsWith(" volcanism"))
@@ -92,15 +127,15 @@ namespace EddiDataDefinitions
             return new Volcanism(type, composition, amount);
         }
 
-        public string toString()
+        public override string ToString()
         {
-            if (amount == null)
+            if (localizedAmount == null)
             {
-                return composition + " " + type;
+                return $"{localizedComposition} {localizedType}";
             }
             else
             {
-                return amount + " " + composition + " " + type;
+                return $"{localizedAmount} {localizedComposition} {localizedType}";
             }
         }
     }

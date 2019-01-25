@@ -2,9 +2,6 @@
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace EddiEvents
 {
@@ -12,7 +9,7 @@ namespace EddiEvents
     {
         public const string NAME = "Material discarded";
         public const string DESCRIPTION = "Triggered when you discard a material";
-        public const string SAMPLE = "{\"timestamp\":\"2016-06-10T14:32:03Z\",\"event\":\"MaterialDiscarded\",\"Category\":\"Encoded\",\"Name\":\"shieldcyclerecordings\"}";
+        public const string SAMPLE = "{\"timestamp\":\"2016-06-10T14:32:03Z\",\"event\":\"MaterialDiscarded\",\"Category\":\"Encoded\",\"Name\":\"shieldcyclerecordings\", \"Count\":3}";
         public static Dictionary<string, string> VARIABLES = new Dictionary<string, string>();
 
         static MaterialDiscardedEvent()
@@ -27,10 +24,15 @@ namespace EddiEvents
         [JsonProperty("amount")]
         public int amount { get; private set; }
 
+        // Admin
+        [JsonProperty("edname")]
+        public string edname { get; private set; }
+
         public MaterialDiscardedEvent(DateTime timestamp, Material material, int amount) : base(timestamp, NAME)
         {
-            this.name = (material == null ? null : material.name);
+            this.name = material?.localizedName;
             this.amount = amount;
+            this.edname = material?.edname;
         }
     }
 }

@@ -2,9 +2,6 @@
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace EddiEvents
 {
@@ -65,10 +62,10 @@ namespace EddiEvents
         {
             this.commander = commander;
             this.shipid = shipId;
-            this.ship = ship;
+            this.ship = ShipDefinitions.FromEDModel(ship).model;
             this.shipname = shipName;
             this.shipident = shipIdent;
-            this.mode = (mode == null ? null : mode.name);
+            this.mode = (mode == null ? null : mode.localizedName);
             this.group = group;
             this.credits = credits;
             this.loan = loan;

@@ -1,11 +1,51 @@
 ﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
 using EddiSpeechService;
 
-namespace Tests
+namespace UnitTests
 {
     [TestClass]
     public class TranslationTests
     {
+        [TestMethod]
+        public void TestICAOEmpty()
+        {
+            string source = "";
+            string icao = Translations.ICAO(source);
+            Assert.AreEqual("", icao);
+        }
+
+        [TestMethod]
+        public void TestICAO1Char()
+        {
+            string source = "a";
+            string icao = Translations.ICAO(source);
+            Assert.AreEqual(@"<phoneme alphabet=""ipa"" ph=""ˈælfə"">alpha</phoneme>", icao);
+        }
+
+        [TestMethod]
+        public void TestICAO2Chars()
+        {
+            string source = "ab";
+            string icao = Translations.ICAO(source);
+            Assert.AreEqual(@"<phoneme alphabet=""ipa"" ph=""ˈælfə"">alpha</phoneme> <phoneme alphabet=""ipa"" ph=""ˈbrɑːˈvo"">bravo</phoneme>", icao);
+        }
+
+        [TestMethod]
+        public void TestICAO3Chars()
+        {
+            string source = "abc";
+            string icao = Translations.ICAO(source);
+            Assert.AreEqual(@"<phoneme alphabet=""ipa"" ph=""ˈælfə"">alpha</phoneme> <phoneme alphabet=""ipa"" ph=""ˈbrɑːˈvo"">bravo</phoneme> <phoneme alphabet=""ipa"" ph=""ˈtʃɑːli"">charlie</phoneme>", icao);
+        }
+
+        [TestMethod]
+        public void TestICAOAllSymbols()
+        {
+            string source = "$@!^";
+            string icao = Translations.ICAO(source);
+            Assert.AreEqual("", icao);
+        }
+
         [TestMethod]
         public void TestTranslateBody1()
         {
@@ -130,6 +170,13 @@ namespace Tests
         {
             Assert.AreEqual(@"B D plus 18 7 1 1", Translations.StarSystem("BD+18 711", false));
             Assert.AreEqual(@"<phoneme alphabet=""ipa"" ph=""ˈbrɑːˈvo"">bravo</phoneme> <phoneme alphabet=""ipa"" ph=""ˈdɛltə"">delta</phoneme> plus 18 <phoneme alphabet=""ipa"" ph=""ˈsɛvɛn"">seven</phoneme> <phoneme alphabet=""ipa"" ph=""ˈwʌn"">one</phoneme> <phoneme alphabet=""ipa"" ph=""ˈwʌn"">one</phoneme>", Translations.StarSystem("BD+18 711", true));
+        }
+
+        [TestMethod]
+        public void TestTranslateStation()
+        {
+            Assert.AreEqual("Or-bis Starport", Translations.Station("Orbis Starport"));
+            Assert.AreEqual("Mega-ship", Translations.Station("Megaship"));
         }
     }
 }

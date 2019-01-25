@@ -1,6 +1,6 @@
 ﻿using Eddi;
 using EddiDataDefinitions;
-using Newtonsoft.Json;
+using EddiEddpMonitor;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
@@ -8,8 +8,6 @@ using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
-using System.Windows.Documents;
-using Utilities;
 
 namespace EddiEddpMonitor
 {
@@ -20,7 +18,7 @@ namespace EddiEddpMonitor
     {
         private EddpConfiguration configuration;
 
-        public List<KeyValuePair<string, string>> StatesPlusNone { get; set; }
+        public List<KeyValuePair<string, FactionState>> StatesPlusNone { get; set; }
 
         private ObservableCollection<Watch> watches;
         public ObservableCollection<Watch> Watches
@@ -37,15 +35,16 @@ namespace EddiEddpMonitor
 
         public ConfigurationWindow()
         {
-            InitializeComponent();
             DataContext = this;
 
             // Make a list of states plus a (anything) state that maps to NULL
-            StatesPlusNone = new List<KeyValuePair<string, string>>();
-            StatesPlusNone.Add(new KeyValuePair<string, string>("(anything)", null));
-            StatesPlusNone.AddRange(State.STATES.Select(x => new KeyValuePair<string, string>(x.name, x.name)));
+            StatesPlusNone = new List<KeyValuePair<string, FactionState>>();
+            StatesPlusNone.Add(new KeyValuePair<string, FactionState>(Properties.EddpResources.anything, null));
+            StatesPlusNone.AddRange(FactionState.AllOfThem.OrderBy(x => x.localizedName).Select(x => new KeyValuePair<string, FactionState>(x.localizedName, x)));
 
             configurationFromFile();
+
+            InitializeComponent();
         }
 
         private void configurationFromFile()
@@ -77,7 +76,7 @@ namespace EddiEddpMonitor
         private void eddpAddWatch(object sender, RoutedEventArgs e)
         {
             Watch watch = new Watch();
-            watch.Name = "New watch";
+            watch.Name = Properties.EddpResources.new_watch;
 
             configuration.watches.Add(watch);
             updateWatchesConfiguration();

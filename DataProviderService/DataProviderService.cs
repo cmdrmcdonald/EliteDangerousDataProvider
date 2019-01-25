@@ -1,298 +1,149 @@
 ﻿using EddiDataDefinitions;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
+using EddiStarMapService;
 using System;
 using System.Collections.Generic;
-using System.Globalization;
-using System.IO;
 using System.Linq;
-using System.Net;
-using System.Text;
+using System.Threading;
 using Utilities;
 
 namespace EddiDataProviderService
 {
-    /// <summary>Access to EDDP data<summary>
+    /// <summary>Access data services<summary>
     public class DataProviderService
     {
-        private const string BASE = "http://api.eddp.co/";
-
-        public static StarSystem GetSystemData(string system, decimal? x, decimal?y, decimal? z)
+        // Uses the EDSM data service and legacy EDDP data
+        public static StarSystem GetSystemData(string system, bool showCoordinates = true, bool showSystemInformation = true, bool showBodies = true, bool showStations = true, bool showFactions = true)
         {
             if (system == null) { return null; }
 
-            // X Y and Z are provided to us with 3dp of accuracy even though they are x/32; fix that here
-            if (x.HasValue)
+            StarSystem starSystem = StarMapService.GetStarMapSystem(system, showCoordinates, showSystemInformation);
+            starSystem = GetSystemExtras(starSystem, showSystemInformation, showBodies, showStations, showFactions) ?? new StarSystem() { name = system };
+            return starSystem;
+        }
+
+        public static List<StarSystem> GetSystemsData(string[] systemNames, bool showCoordinates = true, bool showSystemInformation = true, bool showBodies = true, bool showStations = true, bool showFactions = true)
+        {
+            if (systemNames == null || systemNames.Length == 0) { return null; }
+
+            List<StarSystem> starSystems = StarMapService.GetStarMapSystems(systemNames, showCoordinates, showSystemInformation);
+            List<StarSystem> fullStarSystems = new List<StarSystem>();
+            foreach (string systemName in systemNames)
             {
-                x = (Math.Round(x.Value * 32))/32;
+                fullStarSystems.Add(GetSystemExtras(starSystems.Find(s => s.name == systemName), showSystemInformation, showBodies, showStations, showFactions) ?? new StarSystem() { name = systemName } );
             }
-            if (y.HasValue)
+            return starSystems;
+        }
+
+        private static StarSystem GetSystemExtras(StarSystem starSystem, bool showInformation, bool showBodies, bool showStations, bool showFactions)
+        {
+            if (starSystem != null)
             {
-                y = (Math.Round(y.Value * 32)) / 32;
-            }
-            if (z.HasValue)
-            {
-                z = (Math.Round(z.Value * 32)) / 32;
+                if (showBodies)
+                {
+                    List<Body> bodies = StarMapService.GetStarMapBodies(starSystem.name) ?? new List<Body>();
+                    foreach (Body body in bodies)
+                    {
+                        body.systemname = starSystem.name;
+                        body.systemAddress = starSystem.systemAddress;
+                        body.systemEDDBID = starSystem.EDDBID;
+                        starSystem.bodies.Add(body);
+                    }
+                }
+
+                if (starSystem?.population > 0)
+                {
+                    List<Faction> factions = new List<Faction>();
+                    if (showFactions || showStations)
+                    {
+                        factions = StarMapService.GetStarMapFactions(starSystem.name);
+                        starSystem.factions = factions;
+                    }
+                    if (showStations)
+                    {
+                        List<Station> stations = StarMapService.GetStarMapStations(starSystem.name);
+                        starSystem.stations = SetStationFactionData(stations, factions);
+                        starSystem.stations = stations;
+                    }
+                }
+
+                starSystem = LegacyEddpService.SetLegacyData(starSystem, showInformation, showBodies, showStations);
             }
 
-            string response;
+            return starSystem;
+        }
+
+        private static List<Station> SetStationFactionData(List<Station> stations, List<Faction> factions)
+        {
+            // EDSM doesn't provide full faction information (like faction state) from the stations endpoint data
+            // so we add it from the factions endpoint data
+            foreach (Station station in stations)
+            {
+                foreach (Faction faction in factions)
+                {
+                    if (station.Faction.name == faction.name)
+                    {
+                        station.Faction = faction;
+                    }
+                }
+            }
+            return stations;
+        }
+
+        // EDSM flight log synchronization
+        public static void syncFromStarMapService (bool forceSyncAll = false)
+        {
+            Logging.Info("Syncing from EDSM");
+
             try
             {
-                response = Net.DownloadString(BASE + "systems/" + Uri.EscapeDataString(system));
-            }
-            catch (WebException)
-            {
-                response = null;
-            }
-            if (response == null || response == "")
-            {
-                // No information found on this system, or some other issue.  Create a very basic response
-                response = @"{""name"":""" + system + @"""";
-                if (x.HasValue)
+                StarMapConfiguration starMapCredentials = StarMapConfiguration.FromFile();
+                Dictionary<string, StarMapLogInfo> systems = StarMapService.Instance.getStarMapLog(forceSyncAll ? null : (DateTime?)starMapCredentials.lastSync);
+                Dictionary<string, string> comments = StarMapService.Instance.getStarMapComments();
+
+                int total = systems.Count;
+                int i = 0;
+
+                string[] systemNames = systems.Keys.ToArray();
+                while (i < total)
                 {
-                    response = response + @", ""x"":" + ((decimal)x).ToString(CultureInfo.InvariantCulture);
-                }
-                if (y.HasValue)
-                {
-                    response = response + @", ""y"":" + ((decimal)y).ToString(CultureInfo.InvariantCulture);
-                }
-                if (z.HasValue)
-                {
-                    response = response + @", ""z"":" + ((decimal)z).ToString(CultureInfo.InvariantCulture);
-                }
-                response = response + @", ""stations"":[]";
-                response = response + @", ""bodies"":[]}";
-                Logging.Info("Generating dummy response " + response);
-            }
-            return StarSystemFromEDDP(response, x, y, z);
-        }
+                    int batchSize = Math.Min(total, StarMapService.syncBatchSize);
+                    string[] batchNames = systemNames.Skip(i).Take(batchSize).ToArray();
+                    List<StarSystem> batchSystems = new List<StarSystem>();
 
-        public static StarSystem StarSystemFromEDDP(string data, decimal? x, decimal? y, decimal? z)
-        {
-            return StarSystemFromEDDP(JObject.Parse(data), x, y, z);
-        }
-
-        public static StarSystem StarSystemFromEDDP(dynamic json, decimal? x, decimal? y, decimal? z)
-        {
-            StarSystem StarSystem = new StarSystem();
-            StarSystem.name = (string)json["name"];
-            StarSystem.x = json["x"] == null ? x : (decimal?)json["x"];
-            StarSystem.y = json["y"] == null ? y : (decimal?)json["y"];
-            StarSystem.z = json["z"] == null ? y : (decimal?)json["z"];
-
-            if (json["is_populated"] != null)
-            {
-                // We have real data so populate the rest of the data
-                StarSystem.EDDBID = (long)json["id"];
-                StarSystem.population = (long?)json["population"] == null ? 0 : (long?)json["population"];
-                StarSystem.allegiance = (string)json["allegiance"];
-                StarSystem.government = (string)json["government"];
-                StarSystem.faction = (string)json["faction"];
-                StarSystem.primaryeconomy = (string)json["primary_economy"];
-                StarSystem.state = (string)json["state"] == "None" ? null : (string)json["state"];
-                StarSystem.security = (string)json["security"];
-                StarSystem.power = (string)json["power"] == "None" ? null : (string)json["power"];
-                StarSystem.powerstate = (string)json["power_state"];
-                StarSystem.updatedat = (long?)json["updated_at"];
-
-                StarSystem.stations = StationsFromEDDP(StarSystem.name, json);
-                StarSystem.bodies = BodiesFromEDDP(StarSystem.name, json);
-            }
-
-            StarSystem.lastupdated = DateTime.Now;
-
-            return StarSystem;
-        }
-
-        public static List<Station> StationsFromEDDP(string systemName, dynamic json)
-        {
-            List<Station> Stations = new List<Station>();
-
-            if (json["stations"] != null)
-            {
-                foreach (dynamic station in json["stations"])
-                {
-                    Station Station = new Station();
-                    Station.EDDBID = (long)station["id"];
-                    Station.name = (string)station["name"];
-                    Station.systemname = systemName;
-
-                    Station.primaryeconomy = (string)station["primary_economy"];
-
-                    Station.allegiance = (string)station["allegiance"];
-                    Station.government = (string)station["government"];
-                    Station.faction = (string)station["controlling_faction"];
-                    Station.state = (string)station["state"] == "None" ? null : (string)station["state"];
-                    Station.distancefromstar = (long?)station["distance_to_star"];
-                    Station.hasrefuel = (bool?)station["has_refuel"];
-                    Station.hasrearm = (bool?)station["has_rearm"];
-                    Station.hasrepair = (bool?)station["has_repair"];
-                    Station.hasoutfitting = (bool?)station["has_outfitting"];
-                    Station.hasshipyard = (bool?)station["has_shipyard"];
-                    Station.hasmarket = (bool?)station["has_market"];
-                    Station.hasblackmarket = (bool?)station["has_blackmarket"];
-                    Station.updatedat = (long?)station["updated_at"];
-                    Station.outfittingupdatedat = (long?)station["outfitting_updated_at"];
-
-                    if (((string)station["type"]) != null)
+                    List<StarSystem> starSystems = StarSystemSqLiteRepository.Instance.GetOrCreateStarSystems(batchNames, true);
+                    foreach (string system in batchNames)
                     {
-                        Station.model = ((string)station["type"]);
-                        if (!stationModels.Contains((string)station["type"]))
+                        StarSystem CurrentStarSystem = starSystems.FirstOrDefault(s => s.name == system);
+                        if (CurrentStarSystem == null) { continue; }
+                        CurrentStarSystem.visits = systems[system].visits;
+                        CurrentStarSystem.lastvisit = systems[system].lastVisit;
+                        if (comments.ContainsKey(system))
                         {
-                            Logging.Report("Unknown station model " + ((string)station["type"]));
+                            CurrentStarSystem.comment = comments[system];
                         }
+                        batchSystems.Add(CurrentStarSystem);
                     }
-
-                    string largestpad = (string)station["max_landing_pad_size"];
-                    if (largestpad == "S") { largestpad = "Small"; }
-                    if (largestpad == "M") { largestpad = "Medium"; }
-                    if (largestpad == "L") { largestpad = "Large"; }
-                    Station.largestpad = largestpad;
-
-                    Station.commodities = CommoditiesFromEDDP(station);
-                    Station.commoditiesupdatedat = (long?)station["market_updated_at"];
-
-                    Logging.Debug("Station is " + JsonConvert.SerializeObject(Station));
-                    Stations.Add(Station);
+                    saveFromStarMapService(batchSystems);
+                    i = i + batchSize;
                 }
+                Logging.Info("EDSM sync completed");
             }
-            return Stations;
-        }
-
-        public static List<Commodity> CommoditiesFromEDDP(dynamic json)
-        {
-            List<Commodity> commodities = new List<Commodity>();
-            if (json["commodities"] != null)
+            catch (EDSMException edsme)
             {
-                foreach (dynamic commodity in json["commodities"])
-                {
-                    commodities.Add(new Commodity((int)(long)commodity["id"], (string)commodity["name"], (int?)(long?)commodity["buy_price"], (int?)(long?)commodity["demand"], (int?)(long?)commodity["sell_price"], (int?)(long?)commodity["supply"]));
-                }
+                Logging.Debug("EDSM error received: " + edsme.Message);
             }
-            return commodities;
-        }
-
-        public static List<Body> BodiesFromEDDP(string systemName, dynamic json)
-        {
-            List<Body> Bodies = new List<Body>();
-
-            if (json["bodies"] != null)
+            catch (ThreadAbortException e)
             {
-                foreach (dynamic body in json["bodies"])
-                {
-                    if (body["group_name"] == "Belt")
-                    {
-                        // Not interested in asteroid belts
-                        continue;
-                    }
-
-                    Body Body = new Body();
-
-                    // General items
-                    Body.EDDBID = (long)body["id"];
-                    Body.name = (string)body["name"];
-                    Body.systemname = systemName;
-                    Body.type = body["group_name"];
-                    Body.distance = (long?)body["distance_to_arrival"];
-                    Body.temperature = (long?)body["surface_temperature"];
-                    Body.tidallylocked = (bool?)body["is_rotational_period_tidally_locked"];
-
-                    if (Body.type == "Star")
-                    {
-                        // Star-specific items
-                        Body.stellarclass = (string)body["spectral_class"];
-                        Body.solarmass = (decimal?)(double?)body["solar_masses"];
-                        Body.solarradius = (decimal?)(double?)body["solar_radius"];
-                        Body.age = (long?)body["age"];
-
-                        Body.mainstar = (bool?)body["is_main_star"];
-
-                        Body.landable = false;
-                    }
-
-                    if (Body.type == "Planet")
-                    {
-                        // Planet-specific items
-                        Body.landable = (bool?)body["is_landable"];
-                        Body.periapsis = (decimal?)(double?)body["arg_of_periapsis"];
-                        Body.atmosphere = (string)body["atmosphere_type_name"];
-                        Body.tilt = (decimal?)(double?)body["axis_tilt"];
-                        Body.earthmass = (decimal?)(double?)body["earth_masses"];
-                        Body.gravity = (decimal?)(double?)body["gravity"];
-                        Body.eccentricity = (decimal?)(double?)body["orbital_eccentricity"];
-                        Body.inclination = (decimal?)(double?)body["orbital_inclination"];
-                        Body.orbitalperiod = (decimal?)(double?)body["orbital_period"];
-                        Body.radius = (long?)body["radius"];
-                        Body.rotationalperiod = (decimal?)(double?)body["rotational_period"];
-                        Body.semimajoraxis = (decimal?)(double?)body["semi_major_axis"];
-                        Body.pressure = (decimal?)(double?)body["surface_pressure"];
-                        Body.terraformstate = (string)body["terraforming_state_name"];
-                        Body.planettype = (string)body["type_name"];
-                        // Volcanism might be a simple name or an object
-                        if (body["volcanism_type_name"] != null)
-                        {
-                            Body.volcanism = Volcanism.FromName((string)body["volcanism_type_name"]);
-                        }
-                        if (body["volcanism"] != null)
-                        {
-                            Body.volcanism = new Volcanism((string)body["volcanism"]["type"], (string)body["volcanism"]["composition"], (string)body["volcanism"]["amount"]);
-                        }
-                        if (body["materials"] != null)
-                        {
-                            List<MaterialPresence> Materials = new List<MaterialPresence>();
-                            foreach (dynamic materialJson in body["materials"])
-                            {
-                                Material material = Material.FromName((string)materialJson["material_name"]);
-                                decimal? amount = (decimal?)(double?)materialJson["share"];
-                                if (material != null && amount != null)
-                                {
-                                    Materials.Add(new MaterialPresence(material, (decimal)amount));
-                                }
-                            }
-                            if (Materials.Count > 0)
-                            {
-                                Body.materials = Materials.OrderByDescending(o => o.percentage).ToList();
-                            }
-                        }
-                    }
-
-                    Bodies.Add(Body);
-                }
+                Logging.Debug("EDSM update stopped by user: " + e.Message);
             }
-            // Sort bodies by distance
-            return Bodies.OrderBy(o => o.distance).ToList();
         }
 
-        private static List<string> stationModels = new List<string>()
+        public static void saveFromStarMapService (List<StarSystem> syncSystems)
         {
-            "Asteroid Base",
-            "Civilian Outpost",
-            "Commercial Outpost",
-            "Coriolis Starport",
-            "Industrial Outpost",
-            "Megaship",
-            "Military Outpost",
-            "Mining Outpost",
-            "Ocellus Starport",
-            "Orbis Starport",
-            "Orbital Engineer Base",
-            "Planetary Engineer Base",
-            "Planetary Outpost",
-            "Planetary Port",
-            "Planetary Settlement",
-            "Scientific Outpost",
-            "Unknown Outpost",
-            "Unknown Planetary",
-            "Unknown Starport",
-            "Unsanctioned Outpost"
-        };
-
-        static DataProviderService()
-        {
-            // We need to not use an expect header as it causes problems when sending data to a REST service
-            var errorUri = new Uri(BASE + "error");
-            var errorServicePoint = ServicePointManager.FindServicePoint(errorUri);
-            errorServicePoint.Expect100Continue = false;
+            StarSystemSqLiteRepository.Instance.SaveStarSystems(syncSystems);
+            StarMapConfiguration starMapConfiguration = StarMapConfiguration.FromFile();
+            starMapConfiguration.lastSync = DateTime.UtcNow;
+            starMapConfiguration.ToFile();
         }
     }
 }

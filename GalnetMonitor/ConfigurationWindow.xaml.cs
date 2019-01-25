@@ -1,9 +1,7 @@
 ﻿using Eddi;
-using Newtonsoft.Json;
-using System.Reflection;
+using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Controls;
-using Utilities;
 
 namespace GalnetMonitor
 {
@@ -18,10 +16,13 @@ namespace GalnetMonitor
         {
             InitializeComponent();
 
-            monitor = ((GalnetMonitor)EDDI.Instance.ObtainMonitor("Galnet monitor"));
+            monitor = (GalnetMonitor)EDDI.Instance.ObtainMonitor("Galnet monitor");
 
             GalnetConfiguration configuration = GalnetConfiguration.FromFile();
+            Dictionary<string, string> langs = monitor.GetGalnetLocales();
+            languageComboBox.ItemsSource = langs.Keys;
             languageComboBox.SelectedValue = configuration.language;
+            galnetAlwaysOn.IsChecked = configuration.galnetAlwaysOn;
         }
 
         private void onLanguageChanged(object sender, SelectionChangedEventArgs e)
@@ -37,6 +38,22 @@ namespace GalnetMonitor
                 configuration.ToFile();
                 monitor?.Reload();
             }
+        }
+
+        private void galnetAlwaysOnChecked(object sender, RoutedEventArgs e)
+        {
+            GalnetConfiguration configuration = GalnetConfiguration.FromFile();
+            configuration.galnetAlwaysOn = galnetAlwaysOn.IsChecked.Value;
+            configuration.ToFile();
+            monitor.Reload();
+        }
+
+        private void galnetAlwaysOnUnchecked(object sender, RoutedEventArgs e)
+        {
+            GalnetConfiguration configuration = GalnetConfiguration.FromFile();
+            configuration.galnetAlwaysOn = galnetAlwaysOn.IsChecked.Value;
+            configuration.ToFile();
+            monitor.Reload();
         }
     }
 }

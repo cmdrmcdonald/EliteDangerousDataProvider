@@ -1,11 +1,6 @@
 ﻿using EddiDataDefinitions;
-using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Utilities;
 
 namespace EddiEvents
 {
@@ -13,7 +8,11 @@ namespace EddiEvents
     {
         public const string NAME = "Star scanned";
         public const string DESCRIPTION = "Triggered when you complete a scan of a stellar body";
-        public static string SAMPLE = "{ \"timestamp\":\"2016-10-05T10:13:55Z\", \"event\":\"Scan\", \"BodyName\":\"Col 285 Sector RS-K c8-5 A\", \"DistanceFromArrivalLS\":0.000000, \"StarType\":\"TTS\", \"StellarMass\":0.449219, \"Radius\":458926400.000000, \"AbsoluteMagnitude\":8.287720, \"Age_MY\":51, \"SurfaceTemperature\":3209.000000, \"SemiMajorAxis\":352032544.000000, \"Eccentricity\":0.027010, \"OrbitalInclination\":74.195038, \"Periapsis\":330.750244, \"OrbitalPeriod\":36441.519531, \"RotationPeriod\":203102.843750 }";
+        public static string SAMPLE = "{ \"timestamp\":\"2018-12-01T08:04:24Z\", \"event\":\"Scan\", \"ScanType\":\"AutoScan\", \"BodyName\":\"Arietis Sector UJ-Q b5-2\", \"BodyID\":0, \"DistanceFromArrivalLS\":0.000000, \"StarType\":\"L\", \"StellarMass\":0.218750, \"Radius\":249075072.000000, \"AbsoluteMagnitude\":11.808075, \"Age_MY\":10020, \"SurfaceTemperature\":1937.000000, \"Luminosity\":\"V\", \"RotationPeriod\":119097.164063, \"AxialTilt\":0.000000 }";
+
+        // Scan value calculation constants
+        public const double dssDivider = 2.4;
+        public const double scanDivider = 66.25;
 
         public static Dictionary<string, string> VARIABLES = new Dictionary<string, string>();
 
@@ -27,10 +26,11 @@ namespace EddiEvents
             VARIABLES.Add("radius", "The radius of the star that has been scanned, in metres");
             VARIABLES.Add("solarradius", "The radius of the star that has been scanned, compared to Sol");
             VARIABLES.Add("radiusprobability", "The probablility of finding a star of this class with this radius");
-            VARIABLES.Add("absolutemagnitude", "The absolute magnitude of the star that has been scanned");
+            VARIABLES.Add("absolutemagnitude", "The absolute (bolometric) magnitude of the star that has been scanned");
             VARIABLES.Add("luminosity", "The luminosity of the star that has been scanned");
+            VARIABLES.Add("luminosityclass", "The luminosity class of the star that has been scanned");            
             VARIABLES.Add("tempprobability", "The probablility of finding a star of this class with this temperature");
-            VARIABLES.Add("age", "The age of the star that has been scanned, in years (rounded to millions of years)");
+            VARIABLES.Add("age", "The age of the star that has been scanned, in millions of years");
             VARIABLES.Add("ageprobability", "The probablility of finding a star of this class with this age");
             VARIABLES.Add("temperature", "The temperature of the star that has been scanned");
             VARIABLES.Add("distancefromarrival", "The distance in LS from the main star");
@@ -41,6 +41,10 @@ namespace EddiEvents
             VARIABLES.Add("orbitalinclination", "");
             VARIABLES.Add("periapsis", "");
             VARIABLES.Add("rings", "The star's rings");
+            VARIABLES.Add("estimatedvalue", "The estimated value of the current scan");
+            VARIABLES.Add("estimatedhabzoneinner", "The estimated inner radius of the habitable zone of the scanned star, in light seconds, not considering other stars in the system");
+            VARIABLES.Add("estimatedhabzoneouter", "The estimated outer radius of the habitable zone of the scanned star, in light seconds, not considering other stars in the system");
+            VARIABLES.Add("mainstar", "True if the star is the main / primary star in the star system");
         }
 
         public string name { get; private set; }
@@ -60,6 +64,8 @@ namespace EddiEvents
         public decimal absolutemagnitude { get; private set; }
 
         public decimal luminosity { get; private set; }
+        
+        public string luminosityclass { get; private set; }
 
         public decimal tempprobability { get; private set; }
 
@@ -70,6 +76,8 @@ namespace EddiEvents
         public decimal temperature { get; private set; }
 
         public string chromaticity { get; private set; }
+
+        public decimal distance => distancefromarrival;  // Object property as reported from the BodyDetails() function
 
         public decimal distancefromarrival { get; private set; }
 
@@ -87,13 +95,26 @@ namespace EddiEvents
 
         public List<Ring> rings { get; private set; }
 
-        public StarScannedEvent(DateTime timestamp, string name, string stellarclass, decimal solarmass, decimal radius, decimal absolutemagnitude, long age, decimal temperature, decimal distancefromarrival, decimal? orbitalperiod, decimal rotationperiod, decimal? semimajoraxis, decimal? eccentricity, decimal? orbitalinclination, decimal? periapsis, List<Ring> rings) : base(timestamp, NAME)
+        public decimal? estimatedhabzoneinner { get; private set; }
+
+        public decimal? estimatedhabzoneouter { get; private set; }
+
+        public long? estimatedvalue { get; private set; }
+
+        public string scantype { get; private set; } // One of AutoScan, Basic, Detailed, NavBeacon, NavBeaconDetail
+        // AutoScan events are detailed scans triggered via proximity. 
+
+        public bool mainstar { get; private set; }
+
+        public StarScannedEvent(DateTime timestamp, string scantype, string name, string stellarclass, decimal solarmass, decimal radiusKm, decimal absolutemagnitude, string luminosityclass, long age, decimal temperature, decimal distancefromarrival, decimal? orbitalperiod, decimal rotationperiod, decimal? semimajoraxis, decimal? eccentricity, decimal? orbitalinclination, decimal? periapsis, List<Ring> rings, bool mainstar) : base(timestamp, NAME)
         {
+            this.scantype = scantype;
             this.name = name;
             this.stellarclass = stellarclass;
             this.solarmass = solarmass;
-            this.radius = radius;
+            this.radius = radiusKm;
             this.absolutemagnitude = absolutemagnitude;
+            this.luminosityclass = luminosityclass;         
             this.age = age;
             this.temperature = temperature;
             this.distancefromarrival = distancefromarrival;
@@ -104,8 +125,8 @@ namespace EddiEvents
             this.orbitalinclination = orbitalinclination;
             this.periapsis = periapsis;
             this.rings = rings;
-            solarradius = StarClass.solarradius(radius);
-            luminosity = StarClass.luminosity(absolutemagnitude);
+            solarradius = StarClass.solarradius(radiusKm);
+            luminosity = StarClass.luminosity(absolutemagnitude);  
             StarClass starClass = StarClass.FromName(this.stellarclass);
             if (starClass != null)
             {
@@ -113,8 +134,48 @@ namespace EddiEvents
                 radiusprobability = StarClass.sanitiseCP(starClass.stellarRadiusCP(this.solarradius));
                 tempprobability = StarClass.sanitiseCP(starClass.tempCP(this.temperature));
                 ageprobability = StarClass.sanitiseCP(starClass.ageCP(this.age));
-                chromaticity = starClass.chromaticity;
+                chromaticity = starClass.chromaticity.localizedName;
             }
+            if (radiusKm != 0 && temperature != 0)
+            {
+                // Minimum estimated single-star habitable zone (target black body temperature of 315°K / 42°C / 107°F or less)
+                estimatedhabzoneinner = StarClass.DistanceFromStarForTemperature(StarClass.maxHabitableTempKelvin, Convert.ToDouble(radiusKm), Convert.ToDouble(temperature));
+
+                // Maximum estimated single-star habitable zone (target black body temperature of 223.15°K / -50°C / -58°F or more)
+                estimatedhabzoneouter = StarClass.DistanceFromStarForTemperature(StarClass.minHabitableTempKelvin, Convert.ToDouble(radiusKm), Convert.ToDouble(temperature));
+            }
+            estimatedvalue = estimateValue(scantype != null ? scantype.Contains("Detail") : false);
+            this.mainstar = mainstar;
+        }
+
+        private long? estimateValue(bool detailedScan)
+        {
+            // Credit to MattG's thread at https://forums.frontier.co.uk/showthread.php/232000-Exploration-value-formulae for scan value formulas
+            // 'bodyDataConstant' is a derived constant from MattG's thread for calculating scan values.
+            int baseValue = 2880;
+            double value;
+
+            // Override constants for specific types of bodies
+            if ((stellarclass == "H") || (stellarclass == "N"))
+            {
+                // Black holes and Neutron stars
+                baseValue = 54309;
+            }
+            else if (stellarclass.StartsWith("D") && (stellarclass.Length <= 3))
+            {
+                // White dwarves
+                baseValue = 33737;
+            }
+
+            // Calculate exploration scan values
+            value = baseValue + ((double)solarmass * baseValue / scanDivider);
+
+            if (detailedScan == false)
+            {
+                value = value / dssDivider;
+            }
+
+            return (long?)Math.Round(value, 0);
         }
     }
 }

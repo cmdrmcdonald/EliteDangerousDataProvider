@@ -11,7 +11,8 @@ using System.Text.RegularExpressions;
 using System.IO;
 using EddiDataDefinitions;
 using EddiShipMonitor;
-using Cottle;
+using EddiStatusMonitor;
+using System.Linq;
 
 namespace EddiSpeechResponder
 {
@@ -29,9 +30,20 @@ namespace EddiSpeechResponder
 
         private bool subtitlesOnly;
 
+        private static List<Event> eventQueue = new List<Event>();
+
+        private static bool ignoreBodyScan;
+
+        private bool enqueueStarScan;
+
         public string ResponderName()
         {
             return "Speech responder";
+        }
+
+        public string LocalizedResponderName()
+        {
+            return Properties.SpeechResponder.name;
         }
 
         public string ResponderVersion()
@@ -41,7 +53,7 @@ namespace EddiSpeechResponder
 
         public string ResponderDescription()
         {
-            return "Respond to events with pre-scripted responses using the information available.  Not all events have scripted responses by default; those that do not have the 'Test' button disabled.  The default personality can be copied, which allows existing scripts to be modified or disabled, and new scripts to be written, to suit your preferences.";
+            return Properties.SpeechResponder.desc;
         }
 
         public SpeechResponder()
@@ -56,9 +68,9 @@ namespace EddiSpeechResponder
             { 
                 personality = Personality.Default();
             }
-            scriptResolver = new ScriptResolver(personality.Scripts);
-            subtitles = configuration.Subtitles;
-            subtitlesOnly = configuration.SubtitlesOnly;
+            scriptResolver = new ScriptResolver(personality?.Scripts);
+            subtitles = configuration?.Subtitles ?? false;
+            subtitlesOnly = configuration?.SubtitlesOnly ?? false;
             Logging.Info("Initialised " + ResponderName() + " " + ResponderVersion());
         }
 
@@ -95,11 +107,13 @@ namespace EddiSpeechResponder
 
         public bool Start()
         {
+            EDDI.Instance.State["speechresponder_quiet"] = false;
             return true;
         }
 
         public void Stop()
         {
+            EDDI.Instance.State["speechresponder_quiet"] = true;
         }
 
         public void Reload()
@@ -116,25 +130,110 @@ namespace EddiSpeechResponder
             scriptResolver = new ScriptResolver(personality.Scripts);
             subtitles = configuration.Subtitles;
             subtitlesOnly = configuration.SubtitlesOnly;
-            Logging.Info("Reloaded " + ResponderName() + " " + ResponderVersion());
+            Logging.Debug("Reloaded " + ResponderName() + " " + ResponderVersion());
         }
 
-        public void Handle(Event theEvent)
+        public void Handle(Event @event)
         {
-            Logging.Debug("Received event " + JsonConvert.SerializeObject(theEvent));
+            if (@event.fromLoad)
+            {
+                return;
+            }
 
+            Logging.Debug("Received event " + JsonConvert.SerializeObject(@event));
+
+            if (@event is BeltScannedEvent)
+            {
+                // We ignore belt clusters
+                return;
+            }
+            else if (@event is BodyMappedEvent)
+            {
+                ignoreBodyScan = true;
+            }
+            else if (@event is BodyScannedEvent bodyScannedEvent)
+            {
+                if (bodyScannedEvent.scantype.Contains("NavBeacon") || bodyScannedEvent.scantype == "AutoScan")
+                {
+                    // Suppress scan details from nav beacons and `AutoScan` events.
+                    return;
+                }
+                else if (ignoreBodyScan)
+                {
+                    // Suppress surface mapping probes from voicing redundant body scan events.
+                    ignoreBodyScan = false;
+                    return;
+                }
+            }
+            else if (@event is StatusEvent statusEvent)
+            {
+                if (StatusMonitor.currentStatus.gui_focus == "fss mode")
+                {
+                    // Beginning with Elite Dangerous v. 3.3, the primary star scan is delivered via a Scan with 
+                    // scantype `AutoScan` when you jump into the system. Secondary stars may be delivered in a burst 
+                    // following an FSSDiscoveryScan. Since each source has a different trigger, we re-order events 
+                    // and and report queued star scans when the pilot enters fss mode
+                    Say(@event);
+                    foreach (Event theEvent in eventQueue.OfType<StarScannedEvent>())
+                    {
+                        Say(theEvent);
+                    }
+                    eventQueue.RemoveAll(s => s.GetType() == typeof(StarScannedEvent));
+                    enqueueStarScan = false;
+                    return;
+                }
+            }
+            else if (@event is StarScannedEvent starScannedEvent)
+            {
+                if (starScannedEvent.scantype.Contains("NavBeacon"))
+                {
+                    // Suppress scan details from nav beacons
+                    return;
+                }
+                else if (enqueueStarScan)
+                {
+                    eventQueue.Add(@event);
+                    eventQueue.OrderBy(s => ((StarScannedEvent)s)?.distance);
+                    return;
+                }
+            }
+            else if (@event is JumpedEvent)
+            {
+                eventQueue?.RemoveAll(s => s.GetType() == typeof(StarScannedEvent));
+                enqueueStarScan = true;
+            }
+            else if (@event is SignalDetectedEvent)
+            {
+                if (!(StatusMonitor.currentStatus.gui_focus == "fss mode" || StatusMonitor.currentStatus.gui_focus == "saa mode"))
+                {
+                    return;
+                }
+            }
+            else if (@event is CommunityGoalEvent)
+            {
+                // Disable speech from the community goal event for the time being.
+                return;
+            }
+            Say(@event);
+        }
+
+        private void Say(Event @event)
+        {
+            Say(scriptResolver, ((ShipMonitor)EDDI.Instance.ObtainMonitor("Ship monitor")).GetCurrentShip(), @event.type, @event, null, null, null, SayOutLoud());
+        }
+
+        private static bool SayOutLoud()
+        {
             // By default we say things unless we've been told not to
             bool sayOutLoud = true;
-            object tmp;
-            if (EDDI.Instance.State.TryGetValue("speechresponder_quiet", out tmp))
+            if (EDDI.Instance.State.TryGetValue("speechresponder_quiet", out object tmp))
             {
                 if (tmp is bool)
                 {
                     sayOutLoud = !(bool)tmp;
                 }
             }
-
-            Say(scriptResolver, ((ShipMonitor)EDDI.Instance.ObtainMonitor("Ship monitor")).GetCurrentShip(), theEvent.type, theEvent, null, null, null, sayOutLoud);
+            return sayOutLoud;
         }
 
         // Say something with the default resolver
@@ -165,10 +264,12 @@ namespace EddiSpeechResponder
         // Create Cottle variables from the EDDI information
         private Dictionary<string, Cottle.Value> createVariables(Event theEvent = null)
         {
-            Dictionary<string, Cottle.Value> dict = new Dictionary<string, Cottle.Value>();
-
-            dict["vehicle"] = EDDI.Instance.Vehicle;
-            dict["environment"] = EDDI.Instance.Environment;
+            Dictionary<string, Cottle.Value> dict = new Dictionary<string, Cottle.Value>
+            {
+                ["va_active"] = EDDI.FromVA,
+                ["vehicle"] = EDDI.Instance.Vehicle,
+                ["environment"] = EDDI.Instance.Environment
+            };
 
             if (EDDI.Instance.Cmdr != null)
             {
@@ -185,6 +286,11 @@ namespace EddiSpeechResponder
                 dict["homestation"] = new ReflectionValue(EDDI.Instance.HomeStation);
             }
 
+            if (EDDI.Instance.SquadronStarSystem != null)
+            {
+                dict["squadronsystem"] = new ReflectionValue(EDDI.Instance.SquadronStarSystem);
+            }
+
             if (EDDI.Instance.CurrentStarSystem != null)
             {
                 dict["system"] = new ReflectionValue(EDDI.Instance.CurrentStarSystem);
@@ -198,6 +304,16 @@ namespace EddiSpeechResponder
             if (EDDI.Instance.CurrentStation != null)
             {
                 dict["station"] = new ReflectionValue(EDDI.Instance.CurrentStation);
+            }
+
+            if (EDDI.Instance.CurrentStellarBody != null)
+            {
+                dict["body"] = new ReflectionValue(EDDI.Instance.CurrentStellarBody);
+            }
+
+            if (StatusMonitor.currentStatus != null)
+            {
+                dict["status"] = new ReflectionValue(StatusMonitor.currentStatus);
             }
 
             if (theEvent != null)

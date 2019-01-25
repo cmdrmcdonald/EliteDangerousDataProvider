@@ -1,9 +1,7 @@
-﻿using Newtonsoft.Json;
+﻿using EddiDataDefinitions;
+using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace EddiEvents
 {
@@ -17,14 +15,22 @@ namespace EddiEvents
         static DockingTimedOutEvent()
         {
             VARIABLES.Add("station", "The station at which the docking request has timed out");
+            VARIABLES.Add("stationtype", "The localized model / type of the station at which docking has timed out");
+            VARIABLES.Add("stationDefinition", "The model / type of the station at which docking has timed out (this is an object)");
         }
 
         [JsonProperty("station")]
         public string station { get; private set; }
 
-        public DockingTimedOutEvent(DateTime timestamp, string station) : base(timestamp, NAME)
+        [JsonProperty("stationType")]
+        public StationModel stationDefinition { get; private set; }
+
+        public string stationtype => stationDefinition.localizedName;
+
+        public DockingTimedOutEvent(DateTime timestamp, string station, string stationType) : base(timestamp, NAME)
         {
             this.station = station;
+            this.stationDefinition = StationModel.FromEDName(stationType);
         }
     }
 }

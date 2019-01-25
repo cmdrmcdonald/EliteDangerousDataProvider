@@ -1,5 +1,4 @@
 ﻿using Eddi;
-using EddiCompanionAppService;
 using EddiDataDefinitions;
 using EddiEvents;
 using Newtonsoft.Json;
@@ -7,9 +6,14 @@ using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Globalization;
 using System.Linq;
+using System.Text.RegularExpressions;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Threading;
 using Utilities;
 
@@ -17,15 +21,27 @@ namespace EddiShipMonitor
 {
     public class ShipMonitor : EDDIMonitor
     {
+        private static List<string> HARDPOINT_SIZES = new List<string>() { "Huge", "Large", "Medium", "Small", "Tiny" };
+
         // Observable collection for us to handle changes
-        public ObservableCollection<Ship> shipyard = new ObservableCollection<Ship>();
+        public ObservableCollection<Ship> shipyard { get; private set; }
+        public List<StoredModule> storedmodules { get; private set; }
+
         // The ID of the current ship; can be null
         private int? currentShipId;
+        private int? currentProfileId;
+
         private static readonly object shipyardLock = new object();
+        public event EventHandler ShipyardUpdatedEvent;
 
         public string MonitorName()
         {
-            return "Ship monitor";
+            return Properties.ShipMonitor.ResourceManager.GetString("name", CultureInfo.InvariantCulture);
+        }
+
+        public string LocalizedMonitorName()
+        {
+            return Properties.ShipMonitor.name;
         }
 
         public string MonitorVersion()
@@ -35,7 +51,7 @@ namespace EddiShipMonitor
 
         public string MonitorDescription()
         {
-            return "Track information on your ships.";
+            return Properties.ShipMonitor.desc;
         }
 
         public bool IsRequired()
@@ -45,8 +61,27 @@ namespace EddiShipMonitor
 
         public ShipMonitor()
         {
+            shipyard = new ObservableCollection<Ship>();
+            storedmodules = new List<StoredModule>();
+
+            BindingOperations.CollectionRegistering += Shipyard_CollectionRegistering;
+
             readShips();
             Logging.Info("Initialised " + MonitorName() + " " + MonitorVersion());
+        }
+
+        private void Shipyard_CollectionRegistering(object sender, CollectionRegisteringEventArgs e)
+        {
+            if (Application.Current != null)
+            {
+                // Synchronize this collection between threads
+                BindingOperations.EnableCollectionSynchronization(shipyard, shipyardLock);
+            }
+            else
+            {
+                // If started from VoiceAttack, the dispatcher is on a different thread. Invoke synchronization there.
+                Dispatcher.CurrentDispatcher.Invoke(() => { BindingOperations.EnableCollectionSynchronization(shipyard, shipyardLock); });
+            }
         }
 
         public bool NeedsStart()
@@ -72,6 +107,21 @@ namespace EddiShipMonitor
         public UserControl ConfigurationTabItem()
         {
             return new ConfigurationWindow();
+        }
+
+        public void EnableConfigBinding(MainWindow configWindow)
+        {
+            configWindow.Dispatcher.Invoke(() => { BindingOperations.EnableCollectionSynchronization(shipyard, shipyardLock); });
+        }
+
+        public void DisableConfigBinding(MainWindow configWindow)
+        {
+            configWindow.Dispatcher.Invoke(() => { BindingOperations.DisableCollectionSynchronization(shipyard); });
+        }
+
+        public void Save()
+        {
+            writeShips();
         }
 
         /// <summary>
@@ -106,9 +156,17 @@ namespace EddiShipMonitor
             {
                 handleShipSoldEvent((ShipSoldEvent)@event);
             }
+            else if (@event is ShipSoldOnRebuyEvent)
+            {
+                handleShipSoldOnRebuyEvent((ShipSoldOnRebuyEvent)@event);
+            }
             else if (@event is ShipLoadoutEvent)
             {
                 handleShipLoadoutEvent((ShipLoadoutEvent)@event);
+            }
+            else if (@event is StoredShipsEvent)
+            {
+                handleStoredShipsEvent((StoredShipsEvent)@event);
             }
             else if (@event is ShipRebootedEvent)
             {
@@ -118,9 +176,17 @@ namespace EddiShipMonitor
             {
                 handleShipRefuelledEvent((ShipRefuelledEvent)@event);
             }
+            else if (@event is ShipAfmuRepairedEvent)
+            {
+                handleShipAFMURepairedEvent((ShipAfmuRepairedEvent)@event);
+            }
             else if (@event is ShipRepairedEvent)
             {
                 handleShipRepairedEvent((ShipRepairedEvent)@event);
+            }
+            else if (@event is ShipRepairDroneEvent)
+            {
+                handleShipRepairDroneEvent((ShipRepairDroneEvent)@event);
             }
             else if (@event is ShipRepurchasedEvent)
             {
@@ -130,24 +196,58 @@ namespace EddiShipMonitor
             {
                 handleShipRestockedEvent((ShipRestockedEvent)@event);
             }
-            else if (@event is CargoInventoryEvent)
+            else if (@event is ModulePurchasedEvent)
             {
-                handleCargoInventoryEvent((CargoInventoryEvent)@event);
+                handleModulePurchasedEvent((ModulePurchasedEvent)@event);
             }
-            else if (@event is LimpetPurchasedEvent)
+            else if (@event is ModuleRetrievedEvent)
             {
-                handleLimpetPurchasedEvent((LimpetPurchasedEvent)@event);
+                handleModuleRetrievedEvent((ModuleRetrievedEvent)@event);
             }
-            else if (@event is LimpetSoldEvent)
+            else if (@event is ModuleSoldEvent)
             {
-                handleLimpetSoldEvent((LimpetSoldEvent)@event);
+                handleModuleSoldEvent((ModuleSoldEvent)@event);
             }
-            // TODO ModulePurchasedEvent
-            // TODO ModuleSoldEvent
-            // TODO ModuleStoredEvent
-            // TODO ModuleRetrievedEvent
-            // TODO ModulesSwappedEvent
-            // TODO ModulesStoredEvent
+            else if (@event is ModuleSoldFromStorageEvent)
+            {
+                handleModuleSoldFromStorageEvent((ModuleSoldFromStorageEvent)@event);
+            }
+            else if (@event is ModuleStoredEvent)
+            {
+                handleModuleStoredEvent((ModuleStoredEvent)@event);
+            }
+            else if (@event is ModulesStoredEvent)
+            {
+                handleModulesStoredEvent((ModulesStoredEvent)@event);
+            }
+            else if (@event is ModuleSwappedEvent)
+            {
+                handleModuleSwappedEvent((ModuleSwappedEvent)@event);
+            }
+            else if (@event is ModuleTransferEvent)
+            {
+                handleModuleTransferEvent((ModuleTransferEvent)@event);
+            }
+            else if (@event is ModuleInfoEvent)
+            {
+                handleModuleInfoEvent((ModuleInfoEvent)@event);
+            }
+            else if (@event is StoredModulesEvent)
+            {
+                handleStoredModulesEvent((StoredModulesEvent)@event);
+            }
+            else if (@event is JumpedEvent)
+            {
+                handleJumpedEvent((JumpedEvent)@event);
+            }
+            else if (@event is BountyIncurredEvent)
+            {
+                handleBountyIncurredEvent((BountyIncurredEvent)@event);
+            }
+            else if (@event is BountyPaidEvent)
+            {
+                handleBountyPaidEvent((BountyPaidEvent)@event);
+            }
         }
 
         // Set the ship name conditionally, avoiding filtered names
@@ -178,7 +278,7 @@ namespace EddiShipMonitor
 
         private void handleCommanderContinuedEvent(CommanderContinuedEvent @event)
         {
-            if (!inFighterOrBuggy(@event.ship))
+            if (!inFighter(@event.ship) && !inBuggy(@event.ship))
             {
                 SetCurrentShip(@event.shipid, @event.ship);
                 Ship ship = GetCurrentShip();
@@ -187,7 +287,7 @@ namespace EddiShipMonitor
                     // We don't know of this ship so need to create it
                     ship = ShipDefinitions.FromEDModel(@event.ship);
                     ship.LocalId = (int)@event.shipid;
-                    ship.role = Role.MultiPurpose;
+                    ship.Role = Role.MultiPurpose;
                     AddShip(ship);
                 }
                 setShipName(ship, @event.shipname);
@@ -209,7 +309,7 @@ namespace EddiShipMonitor
                 Ship storedShip = GetShip(@event.storedshipid);
                 if (storedShip != null)
                 {
-                    // Set location of stored ship to the current sstem
+                    // Set location of stored ship to the current system
                     storedShip.starsystem = EDDI.Instance?.CurrentStarSystem?.name;
                     storedShip.station = EDDI.Instance?.CurrentStation?.name;
                 }
@@ -266,43 +366,67 @@ namespace EddiShipMonitor
         private void handleShipSoldEvent(ShipSoldEvent @event)
         {
             RemoveShip(@event.shipid);
+            writeShips();
+        }
 
+        private void handleShipSoldOnRebuyEvent(ShipSoldOnRebuyEvent @event)
+        {
+            RemoveShip(@event.shipid);
             writeShips();
         }
 
         private void handleShipLoadoutEvent(ShipLoadoutEvent @event)
         {
+            if (!inFighter(@event.ship) && !inBuggy(@event.ship))
+            {
+                Ship ship = ParseShipLoadoutEvent(@event);
+
+                // Update the global variable
+                EDDI.Instance.CurrentShip = ship;
+
+                AddShip(ship);
+                writeShips();
+            }
+        }
+
+        private Ship ParseShipLoadoutEvent(ShipLoadoutEvent @event)
+        {
             // Obtain the ship to which this loadout refers
+            Logging.Debug("Current Ship Id is: " + currentShipId + ", Loadout Ship Id is " + @event.shipid);
             Ship ship = GetShip(@event.shipid);
+
             if (ship == null)
             {
                 // The ship is unknown - create it
+                Logging.Debug("Unknown ship ID " + @event.shipid);
                 ship = ShipDefinitions.FromEDModel(@event.ship);
                 ship.LocalId = (int)@event.shipid;
-                ship.role = Role.MultiPurpose;
-                AddShip(ship);
+                ship.Role = Role.MultiPurpose;
             }
 
-            // Update name and ident if required
+            // Save a copy of the raw event so that we can send it to other 3rd party apps
+            ship.raw = @event.raw;
+
+            // Update model (in case it was solely from the edname), name, ident & paintjob if required
+            ship.model = @event.ship;
             setShipName(ship, @event.shipname);
             setShipIdent(ship, @event.shipident);
-
             ship.paintjob = @event.paintjob;
+            ship.hot = @event.hot;
 
-            // Augment the ship info if required
-            if (ship.model == null)
+            // Write ship value, if given by the loadout event
+            if (@event.value != null)
             {
-                ship.model = @event.ship;
-                ship.Augment();
+                ship.value = (long)@event.value;
             }
+
+            ship.rebuy = @event.rebuy;
 
             // Set the standard modules
             Compartment compartment = @event.compartments.FirstOrDefault(c => c.name == "Armour");
             if (compartment != null)
             {
                 ship.bulkheads = compartment.module;
-                // We take ship overall health from here
-                ship.health = compartment.module.health;
             }
 
             compartment = @event.compartments.FirstOrDefault(c => c.name == "ShipCockpit");
@@ -364,18 +488,86 @@ namespace EddiShipMonitor
             }
 
             // Internal + restricted modules
-            ship.compartments = @event.compartments.Where(c => c.name.StartsWith("Slot") || c.name.StartsWith("Military")).ToList();
+            List<Compartment> compartments = new List<Compartment>();
+            foreach (Compartment cpt in @event.compartments.Where(c => c.name.StartsWith("Slot") || c.name.StartsWith("Military")).ToList())
+            {
+                compartments.Add(cpt);
+            }
+            ship.compartments = compartments;
 
             // Hardpoints
-            ship.hardpoints = @event.hardpoints;
+            List<Hardpoint> hardpoints = new List<Hardpoint>();
+            foreach (Hardpoint hpt in @event.hardpoints)
+            {
+                hardpoints.Add(hpt);
+            }
+            ship.hardpoints = hardpoints;
 
             // total fuel tank capacity
-            ship.fueltanktotalcapacity = ship.fueltankcapacity + (int)ship.compartments.Where(c => c.module != null && c.module.name.EndsWith("Fuel Tank")).Sum(c => Math.Pow(2, c.module.@class));
+            ship.fueltanktotalcapacity = ship.fueltankcapacity + (int)ship.compartments.Where(c => c.module != null && c.module.basename.Equals("FuelTank")).Sum(c => Math.Pow(2, c.module.@class));
 
             // Cargo capacity
-            ship.cargocapacity = (int)ship.compartments.Where(c => c.module != null && c.module.name.EndsWith("Cargo Rack")).Sum(c => Math.Pow(2, c.module.@class));
+            ship.cargocapacity = (int)ship.compartments.Where(c => c.module != null && c.module.basename.Contains("CargoRack")).Sum(c => Math.Pow(2, c.module.@class));
+            return ship;
+        }
 
-            writeShips();
+        private void handleStoredShipsEvent(StoredShipsEvent @event)
+        {
+            if (@event.shipyard != null)
+            {
+                //Check for ships missing from the shipyard
+                foreach (Ship shipInEvent in @event.shipyard)
+                {
+                    Ship shipInYard = GetShip(shipInEvent.LocalId);
+
+                    // Add ship from the event if not in shipyard
+                    if (shipInYard == null)
+                    {
+                        shipInEvent.Role = Role.MultiPurpose;
+                        AddShip(shipInEvent);
+                    }
+
+                    // Update ship in the shipyard to latest data
+                    else
+                    {
+                        if (!string.IsNullOrEmpty(shipInEvent.name))
+                        {
+                            shipInYard.name = shipInEvent.name;
+                        }
+                        shipInYard.value = shipInEvent.value;
+                        shipInYard.hot = shipInEvent.hot;
+                        shipInYard.intransit = shipInEvent.intransit;
+                        shipInYard.starsystem = shipInEvent.starsystem;
+                        shipInYard.marketid = shipInEvent.marketid;
+                        shipInYard.station = shipInEvent.station;
+                        shipInYard.transferprice = shipInEvent.transferprice;
+                        shipInYard.transfertime = shipInEvent.transfertime;
+                    }
+                }
+
+                // Prune ships no longer in the shipyard
+                List<int> idsToRemove = new List<int>(shipyard.Count);
+                foreach (Ship shipInYard in shipyard)
+                {
+                    Ship shipInEvent = @event.shipyard.FirstOrDefault(s => s.LocalId == shipInYard.LocalId);
+                    if (shipInEvent == null)
+                    {
+                        idsToRemove.Add(shipInYard.LocalId);
+                    }
+                }
+                _RemoveShips(idsToRemove);
+
+                writeShips();
+            }
+        }
+
+        private void handleStoredModulesEvent(StoredModulesEvent @event)
+        {
+            if (@event.storedmodules != null)
+            {
+                storedmodules = @event.storedmodules;
+                writeShips();
+            }
         }
 
         private void handleShipRebootedEvent(ShipRebootedEvent @event)
@@ -449,7 +641,17 @@ namespace EddiShipMonitor
             }
         }
 
+        private void handleShipAFMURepairedEvent(ShipAfmuRepairedEvent @event)
+        {
+            // This doesn't give us enough information at present to do anything useful
+        }
+
         private void handleShipRepairedEvent(ShipRepairedEvent @event)
+        {
+            // This doesn't give us enough information at present to do anything useful
+        }
+
+        private void handleShipRepairDroneEvent(ShipRepairDroneEvent @event)
         {
             // This doesn't give us enough information at present to do anything useful
         }
@@ -469,41 +671,311 @@ namespace EddiShipMonitor
             // We don't do anything here as this is followed by a full ship loadout event
         }
 
-        public void PostHandle(Event @event)
+        private void handleModulePurchasedEvent(ModulePurchasedEvent @event)
         {
+            Ship ship = GetShip(@event.shipid) ?? @event.shipDefinition;
+            ship.LocalId = ship.LocalId == 0 ? (int)@event.shipid : ship.LocalId;
+            AddModule(ship, @event.slot, @event.buymodule);
+            writeShips();
         }
 
-        private void handleCargoInventoryEvent(CargoInventoryEvent @event)
+        private void handleModuleRetrievedEvent(ModuleRetrievedEvent @event)
+        {
+            Ship ship = GetShip(@event.shipid) ?? @event.shipDefinition;
+            ship.LocalId = ship.LocalId == 0 ? (int)@event.shipid : ship.LocalId;
+            AddModule(ship, @event.slot, @event.module);
+            writeShips();
+        }
+
+        private void handleModuleSoldEvent(ModuleSoldEvent @event)
+        {
+            Ship ship = GetShip(@event.shipid) ?? @event.shipDefinition;
+            ship.LocalId = ship.LocalId == 0 ? (int)@event.shipid : ship.LocalId;
+            RemoveModule(ship, @event.slot);
+            writeShips();
+        }
+
+        private void handleModuleSoldFromStorageEvent(ModuleSoldFromStorageEvent @event)
+        {
+            // We don't do anything here as the ship object is unaffected
+        }
+
+        private void handleModuleStoredEvent(ModuleStoredEvent @event)
+        {
+            Ship ship = GetShip(@event.shipid) ?? @event.shipDefinition;
+            ship.LocalId = ship.LocalId == 0 ? (int)@event.shipid : ship.LocalId;
+            RemoveModule(ship, @event.slot, @event.replacementmodule);
+            writeShips();
+        }
+
+        private void handleModulesStoredEvent(ModulesStoredEvent @event)
+        {
+            Ship ship = GetShip(@event.shipid) ?? @event.shipDefinition;
+            ship.LocalId = ship.LocalId == 0 ? (int)@event.shipid : ship.LocalId;
+            foreach (string slot in @event.slots)
+            {
+                RemoveModule(ship, slot);
+            }
+            writeShips();
+        }
+
+        private void handleModuleSwappedEvent(ModuleSwappedEvent @event)
+        {
+            Ship ship = GetShip(@event.shipid);
+
+            string fromSlot = @event.fromslot;
+            string toSlot = @event.toslot;
+
+            if (fromSlot.Contains("Hardpoint")) // Module is a hardpoint
+            {
+                // Build new dictionary of ship hardpoints, excepting the swapped hardpoints
+                // Save ship hardpoints which match the 'From' and 'To' slots
+                Dictionary<string, Hardpoint> hardpoints = new Dictionary<string, Hardpoint>();
+
+                foreach (Hardpoint hpt in ship.hardpoints)
+                {
+                    if (hpt.name == fromSlot)
+                    {
+                        hpt.name = toSlot;
+                    }
+
+                    if (hpt.name == toSlot)
+                    {
+                        hpt.name = fromSlot;
+                    }
+
+                    hardpoints.Add(hpt.name, hpt);
+                }
+
+                // Clear ship hardpoints and repopulate in correct order
+                ship.hardpoints.Clear();
+                foreach (string size in HARDPOINT_SIZES)
+                {
+                    for (int i = 1; i < 12; i++)
+                    {
+                        hardpoints.TryGetValue(size + "Hardpoint" + i, out Hardpoint hpt);
+                        if (hpt != null)
+                        {
+                            ship.hardpoints.Add(hpt);
+                        }
+                    }
+                }
+            }
+            else //Module is a compartment
+            {
+                // Build new dictionary of ship compartments, excepting the swapped compartments
+                // Save ship compartments which match the 'From' and 'To' slots
+                Dictionary<string, Compartment> compartments = new Dictionary<string, Compartment>();
+
+                foreach (Compartment cpt in ship.compartments)
+                {
+                    if (cpt.name == fromSlot)
+                    {
+                        cpt.name = toSlot;
+                    }
+
+                    if (cpt.name == toSlot)
+                    {
+                        cpt.name = fromSlot;
+                    }
+
+                    compartments.Add(cpt.name, cpt);
+                }
+
+                // Clear ship compartments and repopulate in correct order
+                ship.compartments.Clear();
+                for (int i = 1; i <= 12; i++)
+                {
+                    for (int j = 1; j <= 8; j++)
+                    {
+                        compartments.TryGetValue("Slot" + i.ToString("00") + "_Size" + j, out Compartment cpt);
+                        if (cpt != null)
+                        {
+                            ship.compartments.Add(cpt);
+                        }
+                    }
+                }
+
+                for (int i = 1; i <= 3; i++)
+                {
+                    compartments.TryGetValue("Military" + i.ToString("00"), out Compartment cpt);
+                    if (cpt != null)
+                    {
+                        ship.compartments.Add(cpt);
+                    }
+                }
+            }
+            writeShips();
+        }
+
+        private void handleModuleTransferEvent(ModuleTransferEvent @event)
+        {
+            // We don't do anything here as the ship object is unaffected
+        }
+
+        private void handleModuleInfoEvent(ModuleInfoEvent @event)
         {
             Ship ship = GetCurrentShip();
-            ship.cargo = @event.inventory;
-        }
-
-        private void handleLimpetPurchasedEvent(LimpetPurchasedEvent @event)
-        {
-            Cargo limpets = GetCurrentShip().cargo.Find(c => c.commodity.name == "Limpet");
-            if (limpets == null)
+            if (ship != null)
             {
-                // No limpets so create an entry
-                limpets = new Cargo();
-                limpets.commodity = CommodityDefinitions.FromName("Limpet");
-                limpets.price = @event.price;
-                limpets.amount = 0;
-                GetCurrentShip().cargo.Add(limpets);
+                ModuleInfoReader info = ModuleInfoReader.FromFile();
+                if (info != null)
+                {
+                    for (int i = 0; i < info.Modules.Count(); i++)
+                    {
+                        int position = i + 1;
+                        int priority = info.Modules[i].priority + 1;
+                        decimal power = info.Modules[i].power;
+
+                        string slot = info.Modules[i].slot;
+                        if (!String.IsNullOrEmpty(slot))
+                        {
+                            switch (slot)
+                            {
+                                case "CargoHatch":
+                                    {
+                                        ship.cargohatch = ship.cargohatch ?? new Module();
+                                        ship.cargohatch.position = position;
+                                        ship.cargohatch.priority = priority;
+                                        ship.cargohatch.power = power;
+                                    }
+                                    break;
+                                case "FrameShiftDrive":
+                                    {
+                                        ship.frameshiftdrive = ship.frameshiftdrive ?? new Module();
+                                        ship.frameshiftdrive.position = position;
+                                        ship.frameshiftdrive.priority = priority;
+                                        ship.frameshiftdrive.power = power;
+                                    }
+                                    break;
+                                case "LifeSupport":
+                                    {
+                                        ship.lifesupport = ship.lifesupport ?? new Module();
+                                        ship.lifesupport.position = position;
+                                        ship.lifesupport.priority = priority;
+                                        ship.lifesupport.power = power;
+                                    }
+                                    break;
+                                case "MainEngines":
+                                    {
+                                        ship.thrusters = ship.thrusters ?? new Module();
+                                        ship.thrusters.position = position;
+                                        ship.thrusters.priority = priority;
+                                        ship.thrusters.power = power;
+                                    }
+                                    break;
+                                case "PowerDistributor":
+                                    {
+                                        ship.powerdistributor = ship.powerdistributor ?? new Module();
+                                        ship.powerdistributor.position = position;
+                                        ship.powerdistributor.priority = priority;
+                                        ship.powerdistributor.power = power;
+                                    }
+                                    break;
+                                case "PowerPlant":
+                                    {
+                                        ship.powerplant = ship.powerplant ?? new Module();
+                                        ship.powerplant.position = position;
+                                        ship.powerplant.priority = priority;
+                                        ship.powerplant.power = power;
+                                    }
+                                    break;
+                                case "Radar":
+                                    {
+                                        ship.sensors = ship.sensors ?? new Module();
+                                        ship.sensors.position = position;
+                                        ship.sensors.priority = priority;
+                                        ship.sensors.power = power;
+                                    }
+                                    break;
+                                case "ShipCockpit":
+                                    {
+                                        ship.canopy = ship.canopy ?? new Module();
+                                        ship.canopy.position = position;
+                                        ship.canopy.priority = priority;
+                                        ship.canopy.power = power;
+                                    }
+                                    break;
+                            }
+
+                            if (slot.Contains("Slot"))
+                            {
+                                Compartment compartment = ship.compartments.FirstOrDefault(c => c.name == slot);
+                                if (compartment != null)
+                                {
+                                    compartment.module = compartment.module ?? new Module();
+                                    compartment.module.position = position;
+                                    compartment.module.priority = priority;
+                                    compartment.module.power = power;
+                                }
+                            }
+                            else if (slot.Contains("Hardpoint"))
+                            {
+                                Hardpoint hardpoint = ship.hardpoints.FirstOrDefault(h => h.name == slot);
+                                if (hardpoint != null)
+                                {
+                                    hardpoint.module = hardpoint.module ?? new Module();
+                                    hardpoint.module.position = position;
+                                    hardpoint.module.priority = priority;
+                                    hardpoint.module.power = power;
+                                }
+                            }
+                        }
+                    }
+                    writeShips();
+                }
             }
-            limpets.amount += @event.amount;
         }
 
-        private void handleLimpetSoldEvent(LimpetSoldEvent @event)
+        private void handleJumpedEvent(JumpedEvent @event)
         {
-            Cargo limpets = GetCurrentShip().cargo.Find(c => c.commodity.name == "Limpet");
-            if (limpets != null)
+            if (@event.boostused is null)
             {
-                limpets.amount -= @event.amount;
-                if (limpets.amount < 0) limpets.amount = 0;
+                Ship ship = GetCurrentShip();
+                if (@event.fuelused > ship?.maxfuel)
+                {
+                    ship.maxfuel = @event.fuelused;
+                    ship.maxjump = @event.distance;
+                    writeShips();
+                }
             }
         }
 
+        private void handleBountyIncurredEvent(BountyIncurredEvent @event)
+        {
+            Ship ship = GetCurrentShip();
+            if (ship != null)
+            {
+                ship.hot = true;
+                writeShips();
+            }
+        }
+
+        private void handleBountyPaidEvent(BountyPaidEvent @event)
+        {
+            Ship ship = GetShip(@event.shipid);
+            if (ship != null)
+            {
+                ship.hot = false;
+                writeShips();
+            }
+        }
+
+        public void PostHandle(Event @event)
+        {
+            if (@event is ShipLoadoutEvent)
+            {
+                posthandleShipLoadoutEvent((ShipLoadoutEvent)@event);
+            }
+        }
+
+        private void posthandleShipLoadoutEvent(ShipLoadoutEvent @event)
+        {
+            /// The ship may have Frontier API specific data, request a profile refresh from the Frontier API a minute after switching
+            refreshProfileDelayed(@event.shipid, currentProfileId).GetAwaiter().GetResult();
+        }
+
+        // Note: At a minimum, the API Profile data is required to update the current ship's launchbay status
         public void HandleProfile(JObject profile)
         {
             // Obtain the current ship from the profile
@@ -512,77 +984,64 @@ namespace EddiShipMonitor
             // Obtain the shipyard from the profile
             List<Ship> profileShipyard = FrontierApi.ShipyardFromJson(profileCurrentShip, profile);
 
-            // Information from the Frontier API can be out-of-date so we only use it to set our ship if we don't know what it already is
-            if (currentShipId == null)
-            {
-                // This means that we don't have any info so far; set our active ship
-                if (profileCurrentShip != null)
-                {
-                    SetCurrentShip(profileCurrentShip.LocalId, profileCurrentShip.model);
-                }
-            }
-
-            // Add the raw JSON for each known ship provided in the profile
-            // TODO Rationalise companion API data - munge the JSON according to the compartment information, removing anything that is out-of-sync
             if (profileCurrentShip != null)
             {
-                Ship ship = GetShip(profileCurrentShip.LocalId);
-                if (ship == null)
+                currentProfileId = profileCurrentShip.LocalId;
+                if (currentShipId == null)
                 {
-                    // This means that we haven't seen the ship in the profile before.  Add it to the shipyard
-                    ship = profileCurrentShip;
-                    AddShip(ship);
+                    // This means that we don't have any info so far; set our active ship
+                    currentShipId = profileCurrentShip.LocalId;
+                }
+                Logging.Debug("Current Ship Id is: " + currentShipId + ", Profile Ship Id is: " + profileCurrentShip.LocalId);
 
-                }
-                if (ship.model == null)
+                if (currentShipId == profileCurrentShip.LocalId)
                 {
-                    // We don't know this ship's model but can fill it from the info we have
-                    ship.model = profileCurrentShip.model;
-                    ship.Augment();
-                }
-                // Obtain items that we can't obtain from the journal
-                ship.value = profileCurrentShip.value;
-                if (ship.cargohatch != null)
-                {
-                    // Engineering info for each module isn't in the journal, but we only use this to pass on to Coriolis so don't
-                    // need to splice it in to our model.  We do, however, have cargo hatch information from the journal that we
-                    // want to make avaialable to Coriolis so need to parse the raw data and add cargo hatch info as appropriate
-                    JObject cargoHatchModule = new JObject
+                    Ship ship = GetShip(currentShipId);
+                    if (ship == null)
                     {
-                        { "on", ship.cargohatch.enabled },
-                        { "priority", ship.cargohatch.priority },
-                        { "value", ship.cargohatch.price },
-                        { "health", ship.cargohatch.health },
-                        { "name", "ModularCargoBayDoor" }
-                    };
-                    JObject cargoHatchSlot = new JObject
+                        // Information from the Frontier API can be out-of-date, use it to set our ship if we don't know what it already is
+                        ship = profileCurrentShip;
+                        AddShip(ship);
+                    }
+                    // Ship launchbay data is exclusively from the API, always update.
+                    else
                     {
-                        { "module", cargoHatchModule }
-                    };
-                    JObject parsedRaw = JObject.Parse(profileCurrentShip.raw);
-                    parsedRaw["modules"]["CargoHatch"] = cargoHatchSlot;
-                    ship.raw = parsedRaw.ToString(Formatting.None);
+                        if (profileCurrentShip.launchbays == null || !profileCurrentShip.launchbays.Any())
+                        {
+                            ship.launchbays.Clear();
+                        }
+                        else
+                        {
+                            ship.launchbays = profileCurrentShip.launchbays;
+                        }
+                    }
+                    Logging.Debug("Ship is: " + JsonConvert.SerializeObject(ship));
                 }
             }
 
-            // As of 2.3.0 Frontier no longer supplies module information for ships other than the active ship, so we
-            // keep around the oldest information that we have available
-            //foreach (Ship profileShip in profileShipyard)
-            //{
-            //    Ship ship = GetShip(profileShip.LocalId);
-            //    if (ship != null)
-            //    {
-            //        ship.raw = profileShip.raw;
-            //        if (ship.model == null)
-            //        {
-            //            // We don't know this ship's model but can fill it from the info we have
-            //            ship.model = profileShip.model;
-            //            ship.Augment();
-            //        }
-            //        // Obtain items that we can't obtain from the journal
-            //        ship.value = profileShip.value;
-            //    }
-            //}
+            // Prune ships from the Shipyard that are not found in the Profile Shipyard 
+            List<int> idsToRemove = new List<int>(shipyard.Count);
+            foreach (Ship ship in shipyard)
+            {
+                Ship profileShip = profileShipyard.FirstOrDefault(s => s.LocalId == ship.LocalId);
+                if (profileShip == null)
+                {
+                    idsToRemove.Add(ship.LocalId);
+                }
+            }
+            _RemoveShips(idsToRemove);
+
+            // Add ships from the Profile Shipyard that are not found in the Shipyard 
+            // Update name, ident and value of ships in the Shipyard 
+            foreach (Ship profileShip in profileShipyard)
+            {
+                Ship ship = GetShip(profileShip.LocalId);
+                if (ship == null)
+                {
+                    // This is a new ship, add it to the shipyard
+                    AddShip(profileShip);
+                }
+            }
 
             writeShips();
         }
@@ -592,12 +1051,13 @@ namespace EddiShipMonitor
             IDictionary<string, object> variables = new Dictionary<string, object>
             {
                 ["ship"] = GetCurrentShip(),
+                ["storedmodules"] = new List<StoredModule>(storedmodules),
                 ["shipyard"] = new List<Ship>(shipyard)
             };
             return variables;
         }
 
-        public void writeShips()
+        private void writeShips()
         {
             lock (shipyardLock)
             {
@@ -605,37 +1065,30 @@ namespace EddiShipMonitor
                 ShipMonitorConfiguration configuration = new ShipMonitorConfiguration()
                 {
                     currentshipid = currentShipId,
-                    shipyard = shipyard
+                    shipyard = shipyard,
+                    storedmodules = storedmodules
                 };
                 configuration.ToFile();
             }
+            // Make sure the UI is up to date
+            RaiseOnUIThread(ShipyardUpdatedEvent, shipyard);
         }
 
         private void readShips()
         {
             lock (shipyardLock)
             {
-                // Obtain current inventory from  configuration
+                // Obtain current inventory from configuration
                 ShipMonitorConfiguration configuration = ShipMonitorConfiguration.FromFile();
 
                 // Build a new shipyard
-                List<Ship> newShipyard = new List<Ship>();
-                foreach (Ship ship in configuration.shipyard)
-                {
-                    newShipyard.Add(ship);
-                }
-
-                // Now order the list by model
-                newShipyard = newShipyard.OrderBy(s => s.model).ToList();
+                List<Ship> newShiplist = configuration.shipyard.OrderBy(s => s.model).ToList();
+                List<StoredModule> newModuleList = configuration.storedmodules.OrderBy(s => s.slot).ToList();
 
                 // Update the shipyard
-                shipyard.Clear();
-                foreach (Ship ship in newShipyard)
-                {
-                    AddShip(ship);
-                }
-
+                shipyard = new ObservableCollection<Ship>(newShiplist);
                 currentShipId = configuration.currentshipid;
+                storedmodules = new List<StoredModule>(newModuleList);
             }
         }
 
@@ -647,42 +1100,31 @@ namespace EddiShipMonitor
             }
 
             // Ensure that we have a role for this ship
-
-            if (ship.role == null)
+            if (ship.Role == null)
             {
-                ship.role = Role.MultiPurpose;
+                ship.Role = Role.MultiPurpose;
             }
-
-            // If we were started from VoiceAttack then we might not have an application; check here and create if it doesn't exist
-            if (Application.Current == null)
-            {
-                new Application();
-            }
-
-            // Run this on the dispatcher to ensure that we can update it whilst reflecting changes in the UI
-            if (Application.Current.Dispatcher.CheckAccess())
-            {
-                _AddShip(ship);
-            }
-            else
-            {
-                Application.Current.Dispatcher.BeginInvoke(DispatcherPriority.Normal, new Action(() =>
-                {
-                    _AddShip(ship);
-                }));
-            }
+            _ReplaceOrAddShip(ship);
+            writeShips();
         }
 
-        private void _AddShip(Ship ship)
+        private void _ReplaceOrAddShip(Ship ship)
         {
+            if (ship == null)
+            {
+                return;
+            }
             lock (shipyardLock)
             {
-                if (ship == null)
+                for (int i = 0; i < shipyard.Count; i++)
                 {
-                    return;
+                    if (shipyard[i].LocalId == ship.LocalId)
+                    {
+                        shipyard[i] = ship; // this is much more efficient than removing and adding
+                        return;
+                    }
                 }
-                // Remove the ship first (just in case we are trying to add a ship that already exists)
-                RemoveShip(ship.LocalId);
+                // not found, so add
                 shipyard.Add(ship);
             }
         }
@@ -692,17 +1134,12 @@ namespace EddiShipMonitor
         /// </summary>
         private void RemoveShip(int? localid)
         {
-            if (Application.Current.Dispatcher.CheckAccess())
+            if (localid == null)
             {
-                _RemoveShip(localid);
+                return;
             }
-            else
-            {
-                Application.Current.Dispatcher.BeginInvoke(DispatcherPriority.Normal, new Action(() =>
-                {
-                    _RemoveShip(localid);
-                }));
-            }
+            _RemoveShip(localid);
+            writeShips();
         }
 
         /// <summary>
@@ -710,17 +1147,36 @@ namespace EddiShipMonitor
         /// </summary>
         private void _RemoveShip(int? localid)
         {
+            if (localid == null)
+            {
+                return;
+            }
             lock (shipyardLock)
             {
-                if (localid.HasValue)
+                for (int i = 0; i < shipyard.Count; i++)
                 {
-                    for (int i = 0; i < shipyard.Count; i++)
+                    if (shipyard[i].LocalId == localid)
                     {
-                        if (shipyard[i].LocalId == localid)
-                        {
-                            shipyard.RemoveAt(i);
-                            break;
-                        }
+                        shipyard.RemoveAt(i);
+                        break;
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Remove a list of ships from the shipyard
+        /// </summary>
+        private void _RemoveShips(List<int> idsToRemove)
+        {
+            idsToRemove.Sort();
+            lock (shipyardLock)
+            {
+                for (int i = 0; i < shipyard.Count; i++)
+                {
+                    if (idsToRemove.BinarySearch(shipyard[i].LocalId) >= 0)
+                    {
+                        shipyard.RemoveAt(i);
                     }
                 }
             }
@@ -731,7 +1187,9 @@ namespace EddiShipMonitor
         /// </summary>
         public Ship GetCurrentShip()
         {
-            return GetShip(currentShipId);
+            Ship currentShip = GetShip(currentShipId);
+            EDDI.Instance.CurrentShip = currentShip;
+            return currentShip;
         }
 
         /// <summary>
@@ -743,7 +1201,12 @@ namespace EddiShipMonitor
             {
                 return null;
             }
-            return shipyard.FirstOrDefault(s => s.LocalId == localId);
+            Ship ship;
+            lock (shipyardLock)
+            {
+                ship = shipyard.FirstOrDefault(s => s.LocalId == localId);
+            }
+            return ship;
         }
 
         public void SetCurrentShip(int? localId, string model = null)
@@ -761,10 +1224,10 @@ namespace EddiShipMonitor
                         // We can make one though
                         ship = ShipDefinitions.FromEDModel(model);
                         ship.LocalId = (int)localId;
-                        ship.role = Role.MultiPurpose;
+                        ship.Role = Role.MultiPurpose;
                         AddShip(ship);
                         currentShipId = ship.LocalId;
-                        Logging.Debug("Created ship ID " + localId);
+                        Logging.Debug("Created ship ID " + localId + ";  " + JsonConvert.SerializeObject(ship));
                     }
                     else
                     {
@@ -779,16 +1242,305 @@ namespace EddiShipMonitor
                     // Location for the current ship is always null, as it's with us
                     ship.starsystem = null;
                     ship.station = null;
+                    EDDI.Instance.CurrentShip = ship;
                 }
+                writeShips();
             }
         }
 
-        /// <summary>
-        /// See if we're in a fighter or a buggy
-        /// </summary>
-        private bool inFighterOrBuggy(string model)
+        private void AddModule(Ship ship, string slot, Module module)
         {
-            return (model == "Empire_Fighter" || model == "Federation_Fighter" || model == "Independent_Fighter" || model == "TestBuggy");
+            if (ship != null && slot != null)
+            {
+                Ship updatedShip = ship;
+                try
+                {
+                    switch (slot)
+                    {
+                        case "Armour":
+                            updatedShip.bulkheads = module;
+                            break;
+                        case "PowerPlant":
+                            updatedShip.powerplant = module;
+                            break;
+                        case "MainEngines":
+                            updatedShip.thrusters = module;
+                            break;
+                        case "PowerDistributor":
+                            updatedShip.powerdistributor = module;
+                            break;
+                        case "FrameShiftDrive":
+                            updatedShip.frameshiftdrive = module;
+                            break;
+                        case "LifeSupport":
+                            updatedShip.lifesupport = module;
+                            break;
+                        case "Radar":
+                            updatedShip.sensors = module;
+                            break;
+                        case "FuelTank":
+                            {
+                                updatedShip.fueltank = module;
+                                updatedShip.fueltankcapacity = (decimal)Math.Pow(2, updatedShip.fueltank.@class);
+                            }
+                            break;
+                        case "CargoHatch":
+                            updatedShip.cargohatch = module;
+                            break;
+                    }
+
+                    if (slot.Contains("PaintJob"))
+                    {
+                        updatedShip.paintjob = module.EDName;
+                    }
+                    else if (slot.Contains("Hardpoint"))
+                    {
+                        // This is a hardpoint
+                        Hardpoint hardpoint = new Hardpoint() { name = slot };
+                        hardpoint.module = module;
+
+                        if (hardpoint.name.StartsWith("Tiny"))
+                        {
+                            hardpoint.size = 0;
+                        }
+                        else if (hardpoint.name.StartsWith("Small"))
+                        {
+                            hardpoint.size = 1;
+                        }
+                        else if (hardpoint.name.StartsWith("Medium"))
+                        {
+                            hardpoint.size = 2;
+                        }
+                        else if (hardpoint.name.StartsWith("Large"))
+                        {
+                            hardpoint.size = 3;
+                        }
+                        else if (hardpoint.name.StartsWith("Huge"))
+                        {
+                            hardpoint.size = 4;
+                        }
+
+                        // Build new dictionary of ship hardpoints, excepting sold/stored hardpoint
+                        Dictionary<string, Hardpoint> hardpoints = new Dictionary<string, Hardpoint>();
+                        foreach (Hardpoint hp in updatedShip.hardpoints)
+                        {
+                            if (hp.name != slot)
+                            {
+                                hardpoints.Add(hp.name, hp);
+                            }
+                        }
+                        hardpoints.Add(hardpoint.name, hardpoint);
+
+                        // Clear ship hardpoints and repopulate in correct order
+                        updatedShip.hardpoints.Clear();
+                        foreach (string size in HARDPOINT_SIZES)
+                        {
+                            for (int i = 1; i <= 12; i++)
+                            {
+                                hardpoints.TryGetValue(size + "Hardpoint" + i, out Hardpoint hp);
+                                if (hp != null)
+                                {
+                                    updatedShip.hardpoints.Add(hp);
+                                }
+                            }
+                        }
+                    }
+                    else if (slot.Contains("Slot") || slot.Contains("Military"))
+                    {
+                        // This is a compartment
+                        Compartment compartment = new Compartment() { name = slot };
+                        compartment.module = module;
+
+                        // Compartment slots are in the form of "Slotnn_Sizen" or "Militarynn"
+                        if (slot.Contains("Slot"))
+                        {
+                            Match matches = Regex.Match(compartment.name, @"Size([0-9]+)");
+                            if (matches.Success)
+                            {
+                                compartment.size = Int32.Parse(matches.Groups[1].Value);
+                            }
+                        }
+                        else if (slot.Contains("Military"))
+                        {
+                            compartment.size = updatedShip.militarysize ?? 0;
+                        }
+
+                        // Build new dictionary of ship compartments, excepting sold/stored compartment
+                        Dictionary<string, Compartment> compartments = new Dictionary<string, Compartment>();
+                        foreach (Compartment cpt in updatedShip.compartments)
+                        {
+                            if (cpt.name != slot)
+                            {
+                                compartments.Add(cpt.name, cpt);
+                            }
+                        }
+                        compartments.Add(compartment.name, compartment);
+
+                        // Clear ship compartments and repopulate in correct order
+                        updatedShip.compartments.Clear();
+                        for (int i = 1; i <= 12; i++)
+                        {
+                            for (int j = 1; j <= 8; j++)
+                            {
+                                compartments.TryGetValue("Slot" + i.ToString("00") + "_Size" + j, out Compartment cpt);
+                                if (cpt != null)
+                                {
+                                    updatedShip.compartments.Add(cpt);
+                                }
+                            }
+                        }
+
+                        for (int i = 1; i <= 3; i++)
+                        {
+                            compartments.TryGetValue("Military" + i.ToString("00"), out Compartment cpt);
+                            if (cpt != null)
+                            {
+                                updatedShip.compartments.Add(cpt);
+                            }
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Logging.Error("Failed to add module to ship." + JsonConvert.SerializeObject(new object[] { slot, module }), ex);
+                }
+                ship = updatedShip ?? ship;
+            }
+            else
+            {
+                Logging.Warn("Cannot add the module. Ship ID " + ship?.LocalId + " or ship slot " + slot + " was not found.");
+            }
+        }
+
+        private void RemoveModule(Ship ship, string slot, Module replacement = null)
+        {
+            if (ship != null && slot != null)
+            {
+                Ship updatedShip = ship;
+                try
+                {
+                    if (replacement != null)
+                    {
+                        switch (slot)
+                        {
+                            case "Armour":
+                                ship.bulkheads = replacement;
+                                break;
+                            case "PowerPlant":
+                                ship.powerplant = replacement;
+                                break;
+                            case "MainEngines":
+                                ship.thrusters = replacement;
+                                break;
+                            case "PowerDistributor":
+                                ship.powerdistributor = replacement;
+                                break;
+                            case "FrameShiftDrive":
+                                ship.frameshiftdrive = replacement;
+                                break;
+                            case "LifeSupport":
+                                ship.lifesupport = replacement;
+                                break;
+                            case "Radar":
+                                ship.sensors = replacement;
+                                break;
+                            case "FuelTank":
+                                {
+                                    ship.fueltank = replacement;
+                                    ship.fueltankcapacity = (decimal)Math.Pow(2, ship.fueltank.@class);
+                                }
+                                break;
+                            case "CargoHatch":
+                                ship.cargohatch = replacement;
+                                break;
+                        }
+
+                    }
+                    else
+                    {
+                        if (slot.Contains("PaintJob"))
+                        {
+                            ship.paintjob = null;
+                        }
+                        else if (slot.Contains("Hardpoint"))
+                        {
+                            // Build new list of ship hardpoints, excepting sold/stored hardpoint
+                            List<Hardpoint> hardpoints = new List<Hardpoint>();
+                            foreach (Hardpoint hpt in ship.hardpoints)
+                            {
+                                if (hpt.name != slot)
+                                {
+                                    hardpoints.Add(hpt);
+                                }
+                            }
+                            ship.hardpoints = hardpoints;
+                        }
+                        else if (slot.Contains("Slot") || slot.Contains("Military"))
+                        {
+                            // Build new list of ship compartments, excepting sold/stored compartment
+                            List<Compartment> compartments = new List<Compartment>();
+                            foreach (Compartment cpt in ship.compartments)
+                            {
+                                if (cpt.name != slot)
+                                {
+                                    compartments.Add(cpt);
+                                }
+                            }
+                            ship.compartments = compartments;
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Logging.Error("Failed to remove module from ship." + JsonConvert.SerializeObject(new object[] { slot, replacement }), ex);
+
+                    throw;
+                }
+                ship = updatedShip ?? ship;
+            }
+            else
+            {
+                Logging.Warn("Cannot remove the module. Ship ID " + ship?.LocalId + " or ship slot " + slot + " was not found.");
+            }
+        }
+
+        /// <summary> See if we're in a fighter </summary>
+        private bool inFighter(string model)
+        {
+            return model.Contains("Fighter");
+        }
+
+        /// <summary> See if we're in a buggy / SRV </summary>
+        private bool inBuggy(string model)
+        {
+            return model.Contains("Buggy");
+        }
+
+        static async Task refreshProfileDelayed(int? shipId, int? profileId)
+        {
+            do
+            {
+                await Task.Delay(TimeSpan.FromSeconds(20));
+                EDDI.Instance.refreshProfile();
+            } while (shipId != profileId);
+            Logging.Debug("Current Ship Id is: " + shipId + ", Profile Ship Id is " + profileId);
+        }
+
+        static void RaiseOnUIThread(EventHandler handler, object sender)
+        {
+            if (handler != null)
+            {
+                SynchronizationContext uiSyncContext = SynchronizationContext.Current ?? new SynchronizationContext();
+                if (uiSyncContext == null)
+                {
+                    handler(sender, EventArgs.Empty);
+                }
+                else
+                {
+                    uiSyncContext.Send(delegate { handler(sender, EventArgs.Empty); }, null);
+                }
+            }
         }
     }
 }
+
